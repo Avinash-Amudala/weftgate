@@ -89,7 +89,11 @@ def _checks(root: str, store: str) -> list[Check]:
                 res = s.check_change(Change.from_file(os.path.join(empty, "x", "m.py"), empty))
             imp = [f for f in res.findings if f.oracle == "imports_lockfile"][0]
             _expect(imp.level is Level.UNVERIFIABLE, f"no lockfile must be unverifiable: {imp}")
-            _expect(res.verdict is Level.REJECT, "the env reject still stands")
+            env = [f for f in res.findings if f.oracle == "env_vars"][0]
+            _expect(env.level is Level.REVIEW and "no env declaration source" in env.reason,
+                    f"a repo with no declaration source must review, not reject: {env}")
+            _expect(res.verdict is Level.REVIEW and res.stats["blocking"] is False,
+                    f"nothing here is a proven falsehood: {res.verdict}")
             _expect(res.stats["unverifiable"] == 1, f"stats {res.stats}")
 
     def claim_mode_routes_and_honesty() -> None:

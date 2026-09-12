@@ -140,23 +140,33 @@ def _installed_dists(name: str) -> list[str]:
 class ImportsLockfileOracle(BaseOracle):
     name = "imports_lockfile"
     kinds: tuple[str, ...] = ("import",)
-    version = "2"
+    version = "3"
 
     _PROVIDED = "lang TEXT NOT NULL, name TEXT NOT NULL, dist TEXT NOT NULL, source TEXT NOT NULL"
-    _LOCAL = "lang TEXT NOT NULL, name TEXT NOT NULL, source TEXT NOT NULL"
+    # kind: "root" (importable from a source root), "nested" (a package dir deeper in the
+    # tree, importable only with sys.path help), "alias" (tsconfig paths / baseUrl / dir)
+    _LOCAL = "lang TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, source TEXT NOT NULL"
     _SOURCES = "lang TEXT NOT NULL, source TEXT NOT NULL"
 
     # --- index -----------------------------------------------------------------
 
     def build(self, ctx: Context) -> None:
         provided: list[tuple[str, str, str, str]] = []
-        local: list[tuple[str, str, str]] = []
+        local: list[tuple[str, str, str, str]] = []
         sources: list[tuple[str, str]] = []
         files = ctx.files()
+        roots: set[str] = {"", "src", "lib"}
         for rel in files:
             base = os.path.basename(rel)
             lang = _manifest_lang(base)
             if lang is None:
+                if base in ("tsconfig.json", "jsconfig.json") or (
+                    base.startswith("tsconfig.") and base.endswith(".json")
+                ):
+                    text = ctx.read_text(rel)
+                    if text is not None:
+                        for pattern in _tsconfig_aliases(text, ctx, rel):
+                            local.append(("node", pattern, "alias", rel))
                 continue
             text = ctx.read_text(rel)
             if text is None:
@@ -164,8 +174,15 @@ class ImportsLockfileOracle(BaseOracle):
             dists, own = _parse_manifest(base, text, ctx, rel)
             sources.append((lang, rel))
             provided.extend((lang, norm(d) if lang == "python" else d, d, rel) for d in dists)
-            local.extend((lang, o, rel) for o in own)
-        local.extend(("python", n, "filesystem") for n in _local_python_names(files))
+            local.extend((lang, o, "root", rel) for o in own)
+            if base in ("pyproject.toml", "setup.cfg") and rel.count("/") == 0:
+                roots |= _python_roots(base, text)
+        for name in _local_python_names(files, roots):
+            local.append(("python", name, "root", "filesystem"))
+        for name in _nested_python_packages(files, roots):
+            local.append(("python", name, "nested", "filesystem"))
+        for name in _top_level_dirs(files):
+            local.append(("node", name, "dir", "filesystem"))
         ns = ctx.store.namespace(self.name)
         ns.rebuild("provided", self._PROVIDED, sorted(set(provided)), indexes=["lang, name"])
         ns.rebuild("local", self._LOCAL, sorted(set(local)), indexes=["lang, name"])
@@ -194,9 +211,21 @@ class ImportsLockfileOracle(BaseOracle):
             (lang,),
         ):
             provided.setdefault(str(name), []).append((str(dist), str(source)))
-        local = {str(r[0]) for r in ns.query(
-            "SELECT name FROM {t:local} WHERE lang=?", (lang,))}
-        return _Index(lang, sources, provided, local)
+        local: set[str] = set()
+        nested: set[str] = set()
+        aliases: set[str] = set()
+        dirs: set[str] = set()
+        for name, kind in ns.query("SELECT name, kind FROM {t:local} WHERE lang=?", (lang,)):
+            match str(kind):
+                case "root":
+                    local.add(str(name))
+                case "nested":
+                    nested.add(str(name))
+                case "alias":
+                    aliases.add(str(name))
+                case "dir":
+                    dirs.add(str(name))
+        return _Index(lang, sources, provided, local, nested, aliases, dirs)
 
     # --- extract ---------------------------------------------------------------
 
@@ -266,6 +295,11 @@ class ImportsLockfileOracle(BaseOracle):
         if optional:
             return self.review(
                 claim, f"optional import {top!r} (guarded by try/except) is not in the lockfile")
+        if top in index.nested:
+            return self.review(
+                claim, f"import {top!r} matches a package directory deeper in the repo; it is "
+                       f"importable only if that directory is on sys.path (declare the source "
+                       f"root in pyproject.toml to make this exact)")
         sugg = did_you_mean(top, index.dist_names() | index.local)
         reason = (f"import {top!r} is not in {', '.join(index.sources)} or the standard library "
                   f"(slopsquat risk)")
@@ -281,6 +315,16 @@ class ImportsLockfileOracle(BaseOracle):
             return self.accept(claim, f"in {hit[0][1]}")
         if top in index.local:
             return self.accept(claim, "a workspace package of this repo")
+        spec = claim.subject
+        alias = _matching_alias(spec, index.aliases)
+        if alias is not None:
+            return self.accept(claim, f"resolved via tsconfig paths ({alias})")
+        if _base_url_hit(spec, index.aliases, ctx):
+            return self.accept(claim, "resolved via tsconfig baseUrl")
+        if top.split("/")[0] in index.dirs and not top.startswith("@"):
+            return self.review(
+                claim, f"{spec!r} matches a directory in the repo; probably a bundler path alias "
+                       f"weft could not confirm (declare it in tsconfig paths to make it exact)")
         if os.path.isfile(os.path.join(ctx.repo_root, "node_modules", top, "package.json")):
             return self.review(
                 claim, f"package {top!r} is in node_modules but not in any lockfile or "
@@ -306,11 +350,17 @@ class _Index:
         sources: list[str],
         provided: dict[str, list[tuple[str, str]]],
         local: set[str],
+        nested: set[str] | None = None,
+        aliases: set[str] | None = None,
+        dirs: set[str] | None = None,
     ) -> None:
         self.lang = lang
         self.sources = sources
         self.provided = provided
         self.local = local
+        self.nested = nested or set()
+        self.aliases = aliases or set()  # tsconfig path patterns, plus "baseUrl:<dir>"
+        self.dirs = dirs or set()
 
     def dist_names(self) -> set[str]:
         return {d for hits in self.provided.values() for d, _ in hits}
@@ -683,25 +733,170 @@ def _parse_package_json(data: dict[str, Any], ctx: Context, rel: str) -> tuple[s
     return dists, own
 
 
-def _local_python_names(files: Iterable[str]) -> set[str]:
-    """Top-level importable names the repo itself provides (root, src/, lib/)."""
+def _local_python_names(files: Iterable[str], roots: Iterable[str]) -> set[str]:
+    """Top-level importable names the repo itself provides under each source root."""
     out: set[str] = set()
+    root_list = sorted({r.strip("/") for r in roots})
     for rel in files:
         if not rel.endswith(".py"):
             continue
-        parts = rel.split("/")
-        for root in ("", "src", "lib"):
-            if root and parts[0] != root:
+        for root in root_list:
+            prefix = f"{root}/" if root else ""
+            if root and not rel.startswith(prefix):
                 continue
-            body = parts[1:] if root else parts
-            if not body:
+            body = rel[len(prefix):].split("/")
+            if not body or not body[0]:
                 continue
-            head = body[0]
-            if len(body) == 1:
-                head = head[:-3]
+            head = body[0][:-3] if len(body) == 1 else body[0]
             if head.isidentifier():
                 out.add(head)
     return out
+
+
+def _nested_python_packages(files: Iterable[str], roots: Iterable[str]) -> set[str]:
+    """Names of package directories (``__init__.py``) that are not under a source
+    root: importable only with sys.path help (Django ``apps/``, ``packages/*``)."""
+    root_names = _local_python_names(files, roots)
+    out: set[str] = set()
+    for rel in files:
+        if not rel.endswith("/__init__.py"):
+            continue
+        parts = rel.split("/")
+        if len(parts) < 3:
+            continue
+        name = parts[-2]
+        if name.isidentifier() and name not in root_names:
+            out.add(name)
+    return out
+
+
+def _top_level_dirs(files: Iterable[str]) -> set[str]:
+    """First path segments that are directories (used to soften bare bundler aliases)."""
+    out: set[str] = set()
+    for rel in files:
+        head, sep, _ = rel.partition("/")
+        if sep and head and not head.startswith("."):
+            out.add(head)
+            if head in ("src", "app", "lib"):
+                sub = rel.split("/")
+                if len(sub) > 2:
+                    out.add(sub[1])
+    return out
+
+
+def _python_roots(base: str, text: str) -> set[str]:
+    """Extra source roots declared by the packaging config (setuptools, poetry,
+    hatch, pytest pythonpath)."""
+    roots: set[str] = set()
+    try:
+        if base == "setup.cfg":
+            cp = configparser.ConfigParser()
+            cp.read_string(text)
+            if cp.has_option("options", "package_dir"):
+                for line in cp.get("options", "package_dir").splitlines():
+                    if "=" in line:
+                        roots.add(line.split("=", 1)[1].strip())
+            if cp.has_option("options.packages.find", "where"):
+                roots.update(w.strip() for w in cp.get("options.packages.find",
+                                                        "where").split(","))
+            return {r.strip("./") for r in roots if r.strip("./") != "."}
+        data = load_toml(text)
+    except (ValueError, TypeError, configparser.Error):
+        return set()
+    tool = data.get("tool", {}) if isinstance(data.get("tool"), dict) else {}
+    setuptools = tool.get("setuptools", {}) if isinstance(tool.get("setuptools"), dict) else {}
+    for value in (setuptools.get("package-dir", {}) or {}).values():
+        if isinstance(value, str):
+            roots.add(value)
+    find = setuptools.get("packages", {})
+    if isinstance(find, dict):
+        for w in (find.get("find", {}) or {}).get("where", []) or []:
+            if isinstance(w, str):
+                roots.add(w)
+    poetry = tool.get("poetry", {}) if isinstance(tool.get("poetry"), dict) else {}
+    for pkg in poetry.get("packages", []) or []:
+        if isinstance(pkg, dict) and isinstance(pkg.get("from"), str):
+            roots.add(pkg["from"])
+    hatch = tool.get("hatch", {}) if isinstance(tool.get("hatch"), dict) else {}
+    wheel = ((hatch.get("build", {}) or {}).get("targets", {}) or {}).get("wheel", {}) or {}
+    for pkg in wheel.get("packages", []) or []:
+        if isinstance(pkg, str) and "/" in pkg:
+            roots.add(pkg.rsplit("/", 1)[0])
+    pytest_opts = tool.get("pytest", {}).get("ini_options", {}) if isinstance(
+        tool.get("pytest"), dict) else {}
+    pp = pytest_opts.get("pythonpath", []) if isinstance(pytest_opts, dict) else []
+    for entry in ([pp] if isinstance(pp, str) else pp) or []:
+        if isinstance(entry, str):
+            roots.add(entry)
+    return {r.strip("./") for r in roots if r.strip("./") not in ("", ".")}
+
+
+_JSONC_COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
+_JSONC_TRAILING = re.compile(r",(\s*[}\]])")
+
+
+def _load_jsonc(text: str) -> dict[str, Any]:
+    cleaned = _JSONC_TRAILING.sub(r"\1", _JSONC_COMMENT.sub("", text))
+    data = json.loads(cleaned)
+    return data if isinstance(data, dict) else {}
+
+
+def _tsconfig_aliases(text: str, ctx: Context, rel: str, depth: int = 0) -> set[str]:
+    """``compilerOptions.paths`` patterns (``@app/*``) and ``baseUrl:<dir>`` markers,
+    following one ``extends`` hop."""
+    try:
+        data = _load_jsonc(text)
+    except ValueError:
+        return set()
+    out: set[str] = set()
+    ext = data.get("extends")
+    if isinstance(ext, str) and depth < 2 and ext.startswith("."):
+        parent = os.path.normpath(os.path.join(os.path.dirname(rel), ext))
+        if not parent.endswith(".json"):
+            parent += ".json"
+        parent_text = ctx.read_text(parent.replace(os.sep, "/"))
+        if parent_text is not None:
+            out |= _tsconfig_aliases(parent_text, ctx, parent, depth + 1)
+    opts = data.get("compilerOptions", {}) if isinstance(data.get("compilerOptions"), dict) else {}
+    for pattern in (opts.get("paths", {}) or {}):
+        if isinstance(pattern, str):
+            out.add(pattern)
+    base = opts.get("baseUrl")
+    if isinstance(base, str):
+        base_dir = os.path.normpath(os.path.join(os.path.dirname(rel), base)).replace(os.sep, "/")
+        out.add(f"baseUrl:{base_dir.strip('./') or '.'}")
+    return out
+
+
+def _matching_alias(spec: str, aliases: set[str]) -> str | None:
+    for pattern in sorted(aliases):
+        if pattern.startswith("baseUrl:"):
+            continue
+        if pattern.endswith("/*"):
+            if spec == pattern[:-2] or spec.startswith(pattern[:-1]):
+                return pattern
+        elif pattern.endswith("*"):
+            if spec.startswith(pattern[:-1]):
+                return pattern
+        elif spec == pattern:
+            return pattern
+    return None
+
+
+def _base_url_hit(spec: str, aliases: set[str], ctx: Context) -> bool:
+    for pattern in aliases:
+        if not pattern.startswith("baseUrl:"):
+            continue
+        base = pattern[len("baseUrl:"):]
+        head = spec.split("/")[0]
+        candidate = os.path.join(ctx.repo_root, "" if base == "." else base, head)
+        if os.path.isdir(candidate):
+            return True
+        for ext in (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".vue",
+                    ".svelte", ".json"):
+            if os.path.isfile(candidate + ext):
+                return True
+    return False
 
 
 def register(api: OracleAPI) -> None:

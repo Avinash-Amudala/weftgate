@@ -1,7 +1,7 @@
 """The plain CLI. Identical findings to the MCP server: both call gate.* .
 
 Commands:
-  weft check [<path>|-|<dir>] [--staged|--git]   verify a file, a directory, or a diff
+  weft check [<paths>...|-] [--staged|--git]     verify files, directories, or a diff
   weft check --path REL --content FILE|-          verify content that is not on disk yet
   weft claim '<json>'|@file|-  [--run]            verify structured claims (claim mode)
   weft audit [paths...]                           sweep the repo for latent broken edges
@@ -104,8 +104,9 @@ def build_parser() -> argparse.ArgumentParser:
     _global_options(p, top=True)
     sub = p.add_subparsers(dest="command")
 
-    c = sub.add_parser("check", help="verify a file, directory, or diff")
-    c.add_argument("target", nargs="?", default=None, help="file, directory, or '-' for a diff")
+    c = sub.add_parser("check", help="verify files, directories, or a diff")
+    c.add_argument("targets", nargs="*", default=[],
+                   help="files and/or directories, or '-' for a unified diff on stdin")
     c.add_argument("--staged", action="store_true", help="check the staged git diff")
     c.add_argument("--git", action="store_true", help="check the working-tree git diff")
     c.add_argument("--path", help="repo-relative path for --content")
@@ -173,14 +174,15 @@ def cmd_check(args: argparse.Namespace) -> int:
         repo = _repo(args)
         change = Change.from_git(repo, staged=args.staged)
     else:
-        target = args.target or "-"
-        if target == "-":
+        targets = list(args.targets) or ["-"]
+        if targets == ["-"]:
             stdin_text = "" if sys.stdin.isatty() else sys.stdin.read()
             repo = _repo(args)
             change = Change.from_path_or_diff("-", stdin_text, repo)
         else:
-            repo = _repo(args, target if os.path.exists(target) else None)
-            change = Change.from_path_or_diff(target, None, repo)
+            first = next((t for t in targets if os.path.exists(t)), None)
+            repo = _repo(args, first)
+            change = Change.combine(Change.from_path_or_diff(t, None, repo) for t in targets)
     with gate.Session(repo, store_path=args.store) as session:
         return _emit(session.check_change(change), args.format)
 

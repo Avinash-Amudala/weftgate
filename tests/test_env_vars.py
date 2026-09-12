@@ -181,10 +181,14 @@ def test_incremental_sync_tracks_declaration_changes(tmp_path):
     oracle.sync(ctx, None)
     ctx.store.finish_sync(None)
     assert _check(root, code, ctx=ctx)["NEW_VAR"].level is Level.ACCEPT
-    os.remove(os.path.join(root, ".env.example"))
+    write(root, ".env.example", "DATABASE_URL=\n")  # NEW_VAR removed, a source remains
     oracle.sync(ctx, None)
     ctx.store.finish_sync(None)
     assert _check(root, code, ctx=ctx)["NEW_VAR"].level is Level.REJECT
+    os.remove(os.path.join(root, ".env.example"))  # no source at all: review, not reject
+    oracle.sync(ctx, None)
+    ctx.store.finish_sync(None)
+    assert _check(root, code, ctx=ctx)["NEW_VAR"].level is Level.REVIEW
     ctx.store.close()
 
 

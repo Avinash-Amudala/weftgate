@@ -86,8 +86,8 @@ _DOCKERFILE_ENV_MULTI = re.compile(rf"(?:^|\s){_NAME}=")
 _JS_DECL = re.compile(rf"\bprocess\.env\.{_NAME}\s*(=[^=]|\|\||\?\?)")
 _PY_SUFFIXES = (".py",)
 _JS_SUFFIXES = (".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".mts", ".cts")
-_CODE_SUFFIXES = (".py", ".rb", ".go", ".rs", ".java", ".kt", ".cs", ".php", ".vue", ".svelte",
-                  *_JS_SUFFIXES)
+_CLIKE_SUFFIXES = (".go", ".rs", ".java", ".kt", ".cs", ".php", ".vue", ".svelte", *_JS_SUFFIXES)
+_CODE_SUFFIXES = (".py", ".rb", *_CLIKE_SUFFIXES)
 
 # Variables the OS, the runtime, or CI provide. Reading one is never a broken wire.
 _AMBIENT = frozenset(
@@ -114,7 +114,7 @@ def _is_ambient(name: str, extra: Iterable[str]) -> bool:
 class EnvVarOracle(BaseOracle):
     name = "env_vars"
     kinds: tuple[str, ...] = ("env_var",)
-    version = "2"
+    version = "3"
 
     _COLUMNS = "file TEXT NOT NULL, name TEXT NOT NULL, source TEXT NOT NULL"
 
@@ -212,11 +212,17 @@ class EnvVarOracle(BaseOracle):
             precise = _extract_python_ast(region)
             if precise is not None:
                 return precise
-        return self._extract_region_regex(region)
+        if region.whole_file and region.file.endswith(_CLIKE_SUFFIXES + (".rb",)):
+            style = "hash" if region.file.endswith(".rb") else "clike"
+            masked = mask_comments(region.text(), style).split("\n")
+            lines = [(ln, masked[ln - 1] if ln - 1 < len(masked) else text)
+                     for ln, text in region.lines()]
+            return self._extract_lines(region.file, lines)
+        return self._extract_lines(region.file, region.lines())
 
-    def _extract_region_regex(self, region: Region) -> list[Claim]:
+    def _extract_lines(self, file: str, lines: list[tuple[int, str]]) -> list[Claim]:
         claims: list[Claim] = []
-        for lineno, text in region.lines():
+        for lineno, text in lines:
             if _COMMENT.match(text):
                 continue
             seen_here: set[str] = set()
@@ -232,7 +238,7 @@ class EnvVarOracle(BaseOracle):
                         Claim(
                             kind="env_var",
                             subject=name,
-                            location=Location(region.file, lineno, m.start() + 1),
+                            location=Location(file, lineno, m.start() + 1),
                             attrs={"default": has_default} if has_default else {},
                         )
                     )
@@ -242,7 +248,7 @@ class EnvVarOracle(BaseOracle):
                     Claim(
                         kind="env_var",
                         subject="<dynamic>",
-                        location=Location(region.file, lineno, dyn.start() + 1),
+                        location=Location(file, lineno, dyn.start() + 1),
                         hard=False,
                     )
                 )
@@ -262,6 +268,13 @@ class EnvVarOracle(BaseOracle):
             return self.accept(claim, "well-known variable provided by the OS, runtime, or CI")
         if claim.attrs.get("default"):
             return self.accept(claim, "read with an inline default; not declared in any env source")
+        if not declared:
+            return self.review(
+                claim,
+                f"env var {claim.subject!r} is read, and this repo has no env declaration source "
+                f"at all (no .env.example, settings schema, Dockerfile ENV, or code default); "
+                f"add one, or list your .env under env_declared_in in weft.toml",
+            )
         sugg = self.suggest(claim, ctx)
         target = self._where_to_declare(ctx)
         reason = f"env var {claim.subject!r} is read but declared nowhere (add it to {target})"
@@ -276,6 +289,63 @@ class EnvVarOracle(BaseOracle):
             if os.path.isfile(ctx.path(rel)):
                 return rel
         return ".env.example"
+
+
+# --- comment masking for regex-scanned languages ----------------------------------------------
+
+
+def mask_comments(text: str, style: str = "clike") -> str:
+    """Blank out comments (``//``, ``/* */``, or ``#``) while keeping every line and
+    every string literal intact, so a read quoted in a comment is not a claim but a
+    read inside a template string still is. Escapes and the three JS quote kinds are
+    honoured; regex literals are not (a rare ``//`` inside one may end the scan early,
+    which only ever *hides* a read, never invents one)."""
+    out: list[str] = []
+    i, n = 0, len(text)
+    quote: str | None = None
+    block = False
+    line = False
+    while i < n:
+        ch = text[i]
+        nxt = text[i + 1] if i + 1 < n else ""
+        if line:
+            if ch == "\n":
+                line = False
+                out.append(ch)
+            else:
+                out.append(" ")
+        elif block:
+            if ch == "*" and nxt == "/":
+                block = False
+                out.append("  ")
+                i += 1
+            else:
+                out.append(ch if ch == "\n" else " ")
+        elif quote:
+            out.append(ch)
+            if ch == "\\" and i + 1 < n:
+                out.append(nxt)
+                i += 1
+            elif ch == quote:
+                quote = None
+        elif ch in ("'", '"', "`"):
+            quote = ch
+            out.append(ch)
+        elif style == "clike" and ch == "/" and nxt == "/":
+            line = True
+            out.append("  ")
+            i += 1
+        elif style == "clike" and ch == "/" and nxt == "*":
+            block = True
+            out.append("  ")
+            i += 1
+        elif style == "hash" and ch == "#":
+            line = True
+            out.append(" ")
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 # --- precise extraction for whole Python files -------------------------------------------

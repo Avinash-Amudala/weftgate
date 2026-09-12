@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 _HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
@@ -58,6 +59,13 @@ class Change:
 
     def is_empty(self) -> bool:
         return not any(r.lines() for r in self.regions)
+
+    @classmethod
+    def combine(cls, changes: Iterable[Change]) -> Change:
+        out = cls()
+        for ch in changes:
+            out.regions.extend(ch.regions)
+        return out
 
     def relative_to(self, repo_root: str) -> Change:
         """The same change with every file path repo-relative and POSIX-separated."""

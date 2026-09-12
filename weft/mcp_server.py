@@ -41,6 +41,8 @@ TOOLS: list[dict[str, Any]] = [
                 "repo": _REPO_PROP,
                 "path": {"type": "string",
                          "description": "file to check (repo-relative or absolute)"},
+                "paths": {"type": "array", "items": {"type": "string"},
+                          "description": "several files or directories to check together"},
                 "content": {"type": "string",
                             "description": "new content of `path` (not yet written)"},
                 "diff": {"type": "string", "description": "a unified diff to check"},
@@ -171,12 +173,17 @@ def _change_from_args(args: dict[str, Any], repo: str) -> Change:
         return Change.from_unified_diff(str(diff))
     if args.get("staged"):
         return Change.from_git(repo, staged=True)
-    if path:
-        full = str(path) if os.path.isabs(str(path)) else os.path.join(repo, str(path))
-        if not os.path.exists(full):
-            raise ToolError(f"no such file: {path}")
-        return Change.from_path_or_diff(full, None, repo)
-    raise ToolError("check_change needs one of 'path', 'content'+'path', 'diff', or 'staged'")
+    targets = [str(path)] if path else [str(p) for p in (args.get("paths") or [])]
+    if targets:
+        changes: list[Change] = []
+        for target in targets:
+            full = target if os.path.isabs(target) else os.path.join(repo, target)
+            if not os.path.exists(full):
+                raise ToolError(f"no such file: {target}")
+            changes.append(Change.from_path_or_diff(full, None, repo))
+        return Change.combine(changes)
+    raise ToolError("check_change needs one of 'path', 'paths', 'content'+'path', 'diff', "
+                    "or 'staged'")
 
 
 # --- JSON-RPC plumbing -----------------------------------------------------------------------

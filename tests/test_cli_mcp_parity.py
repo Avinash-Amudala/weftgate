@@ -188,3 +188,21 @@ def test_official_mcp_client_drives_the_server(tmp_path, capsys):
         errlog.close()
     assert "check_change" in names
     assert payload == via_cli
+
+
+def test_global_options_work_after_the_subcommand(tmp_path, capsys):
+    """The pre-commit hook runs `weft check --staged --format=github`; README examples put
+    --format after the command too. Both positions must parse and agree."""
+    root = _repo(tmp_path)
+    bad = os.path.join(root, "bad.py")
+    assert cli.main(["--repo", root, "--format", "json", "check", bad]) == 1
+    before = json.loads(capsys.readouterr().out)
+    assert cli.main(["check", bad, "--repo", root, "--format=json"]) == 1
+    after = json.loads(capsys.readouterr().out)
+    assert before == after
+    assert cli.main(["audit", "--repo", root, "--format=github"]) == 1
+    assert capsys.readouterr().out.startswith("::error ")
+    assert cli.main(["eval", "mutate", "--fixture", "--seed", "13", "--format=json"]) == 0
+    assert json.loads(capsys.readouterr().out)["misses"] == 0
+    assert cli.main(["index", "--status", "--repo", root, "--format", "json"]) == 0
+    assert json.loads(capsys.readouterr().out)["oracles"]["env_vars"]["built"] is True

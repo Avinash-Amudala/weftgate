@@ -85,13 +85,23 @@ def _gh_escape(text: str) -> str:
 # --- argument parsing ------------------------------------------------------------------------
 
 
+def _global_options(parser: argparse.ArgumentParser, top: bool) -> None:
+    """--repo/--format/--store are accepted before *and* after the subcommand.
+    On subparsers the default is SUPPRESS so an absent option keeps the top-level value."""
+    default: Any = argparse.SUPPRESS
+    parser.add_argument("--repo", default=None if top else default,
+                        help="repository root (default: nearest .git or weft.toml)")
+    parser.add_argument("--format", choices=FORMATS, default="text" if top else default,
+                        help="output format (default: text)")
+    parser.add_argument("--store", default=None if top else default,
+                        help="explicit SQLite index path (default: cache dir)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="weft", description=__doc__.split("\n\n")[0],
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--version", action="version", version=f"weft {__version__}")
-    p.add_argument("--repo", help="repository root (default: nearest .git or weft.toml)")
-    p.add_argument("--format", choices=FORMATS, default="text")
-    p.add_argument("--store", help="explicit SQLite index path (default: cache dir)")
+    _global_options(p, top=True)
     sub = p.add_subparsers(dest="command")
 
     c = sub.add_parser("check", help="verify a file, directory, or diff")
@@ -133,6 +143,8 @@ def build_parser() -> argparse.ArgumentParser:
     h.add_argument("agent", choices=["claude"])
 
     sub.add_parser("mcp", help="start the stdio MCP server")
+    for parser in list(sub.choices.values()) + list(esub.choices.values()):
+        _global_options(parser, top=False)
     return p
 
 

@@ -1,0 +1,67 @@
+name: "weft"
+description: "Verification gate for coding agents: check the wiring (env vars, imports, routes) of a pull request, or audit a whole repo."
+author: "Avinash Amudala"
+branding:
+  icon: "check-square"
+  color: "purple"
+inputs:
+  mode:
+    description: "check (the pull request diff against its base) or audit (the whole repo)"
+    required: false
+    default: "check"
+  base:
+    description: "Base ref to diff against in check mode (default: the PR base, else HEAD~1)"
+    required: false
+    default: ""
+  paths:
+    description: "Space-separated paths to limit an audit to"
+    required: false
+    default: ""
+  block-on:
+    description: "reject | review | never (overrides weft.toml)"
+    required: false
+    default: ""
+  python-version:
+    description: "Python version to run weft with"
+    required: false
+    default: "3.12"
+  weft-ref:
+    description: "Git ref of weft to install (default: the ref this action was invoked at)"
+    required: false
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install weft
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ -n "${{ inputs.weft-ref }}" ]; then
+          pip install -q "git+https://github.com/${{ github.action_repository || 'Avinash-Amudala/weft' }}@${{ inputs.weft-ref }}"
+        else
+          pip install -q "${{ github.action_path }}"
+        fi
+        weft --version
+    - name: Run weft
+      shell: bash
+      env:
+        WEFT_BLOCK_ON: ${{ inputs.block-on }}
+      run: |
+        set -euo pipefail
+        if [ "${{ inputs.mode }}" = "audit" ]; then
+          weft audit --format=github ${{ inputs.paths }}
+          exit $?
+        fi
+        base="${{ inputs.base }}"
+        if [ -z "$base" ] && [ -n "${{ github.base_ref }}" ]; then
+          base="origin/${{ github.base_ref }}"
+          git fetch -q --depth=1 origin "${{ github.base_ref }}" || true
+        fi
+        if [ -z "$base" ]; then
+          base="HEAD~1"
+        fi
+        echo "weft: checking diff $base...HEAD"
+        git diff --no-color --no-ext-diff --no-renames -U0 "$base...HEAD" | weft check - --format=github

@@ -1,0 +1,25 @@
+# Use with https://pre-commit.com:
+#
+#   repos:
+#     - repo: https://github.com/Avinash-Amudala/weft
+#       rev: v0.1.0
+#       hooks:
+#         - id: weft-check
+#
+# The hook blocks a commit only on a REJECT verdict (a proven broken wire).
+- id: weft-check
+  name: weft check (env vars, imports, routes resolve)
+  description: Verify that the files being committed reference things that exist.
+  entry: weft check --format=github
+  language: python
+  types: [text]
+  pass_filenames: true
+  require_serial: true
+- id: weft-audit
+  name: weft audit (whole repo)
+  description: Sweep the repository for latent broken wires.
+  entry: weft audit --format=github
+  language: python
+  pass_filenames: false
+  always_run: true
+  stages: [manual]

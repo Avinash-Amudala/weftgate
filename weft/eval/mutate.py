@@ -170,8 +170,8 @@ def _eligible(f: Finding) -> bool:
             return (f.reason.startswith("declared in") and f.claim.subject.isidentifier()
                     and not f.claim.attrs.get("default"))
         case "imports_lockfile":
-            if not f.reason.startswith("in "):
-                return False
+            if not f.reason.startswith("in ") or f.claim.attrs.get("optional"):
+                return False  # an optional (try/except) import is never a broken wire
             top = str(f.claim.attrs.get("top") or f.claim.subject)
             if f.claim.attrs.get("lang") == "node":
                 # Plain package names only (a scoped or sub-path spec is harder to strike).

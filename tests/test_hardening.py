@@ -291,3 +291,34 @@ def test_harness_handles_multi_line_calls_and_node_candidates(tmp_path):
     assert routes["total"] == 1 and routes["misses"] == 0
     assert imports["total"] >= 3 and imports["misses"] == 0
     assert any(m["file"] == "server.js" for m in report.mutations)
+
+
+def test_coverage_uses_the_projects_mandatory_deps_only(tmp_path):
+    # Mandatory deps are all installed here (they are weft's own dev tools); the optional
+    # and dev groups name packages that are not. Coverage must ignore the latter, so the
+    # environment still counts as the project's own and a phantom import is proven absent.
+    root = str(tmp_path / "repo")
+    write(root, "pyproject.toml",
+          '[project]\ndependencies = ["pytest", "ruff", "mypy"]\n'
+          '[project.optional-dependencies]\nextra = ["zz-not-installed-a", "zz-not-installed-b"]\n'
+          '[dependency-groups]\ndev = ["zz-not-installed-c", "zz-not-installed-d", '
+          '"zz-not-installed-e"]\n'
+          '[tool.hatch.envs.default]\ndependencies = ["zz-not-installed-f"]\n')
+    # A nested example app with its own (unmet) requirements must not dilute the root.
+    write(root, "examples/demo/requirements.txt", "zz-not-installed-g\nzz-not-installed-h\n")
+    res = _run(root, ImportsLockfileOracle(), "pkg/m.py", "import ghostpkg_zz\nimport pytest\n")
+    assert res["pytest"].level is Level.ACCEPT
+    assert res["ghostpkg_zz"].level is Level.REJECT, res["ghostpkg_zz"].reason
+    # Inside the example app the nearest manifest is the unmet one: not proven there.
+    res = _run(root, ImportsLockfileOracle(), "examples/demo/app.py", "import ghostpkg_zz\n")
+    assert res["ghostpkg_zz"].level is Level.REVIEW
+
+
+def test_optional_import_reviews_with_a_suggestion(tmp_path):
+    root = str(tmp_path / "repo")
+    write(root, "uv.lock", '[[package]]\nname = "httpx-oauth"\n')
+    res = _run(root, ImportsLockfileOracle(), "m.py",
+               "try:\n    from htttpx_oauth.oauth2 import X\nexcept ImportError:\n    X = None\n")
+    f = res["htttpx_oauth.oauth2"]
+    assert f.level is Level.REVIEW and "optional" in f.reason
+    assert f.suggestions == ("httpx-oauth",)

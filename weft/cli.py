@@ -8,7 +8,7 @@ Commands:
   weft index [--rebuild] [--status]               build/refresh the index, or show it
   weft suggest KIND SUBJECT                       did-you-mean for one reference
   weft eval mutate [--seed N] [--fixture]         mutation harness, reproducible
-  weft setup [--hooks] [--dry-run]                detect stack, write config, build index
+  weft setup [--hooks] [--agents a,b] [--dry-run] detect stack, write config, build index
   weft hook claude                                Claude Code PreToolUse hook (stdin JSON)
   weft mcp                                        start the stdio MCP server
 
@@ -139,6 +139,9 @@ def build_parser() -> argparse.ArgumentParser:
     st.add_argument("--hooks", action="store_true", help="also write git + Claude Code hooks")
     st.add_argument("--dry-run", action="store_true")
     st.add_argument("--force", action="store_true", help="overwrite an existing weft.toml")
+    st.add_argument("--agents", default=None,
+                    help="comma-separated agents to configure: claude, cursor, vscode, codex, "
+                         "windsurf, claude-desktop, or all")
 
     h = sub.add_parser("hook", help="agent hook adapters")
     h.add_argument("agent", choices=["claude"])
@@ -281,8 +284,9 @@ def cmd_eval(args: argparse.Namespace) -> int:
 def cmd_setup(args: argparse.Namespace) -> int:
     from . import setup
 
+    agents = [a.strip() for a in str(args.agents or "").split(",") if a.strip()]
     return setup.run(_repo(args), hooks=args.hooks, dry_run=args.dry_run, force=args.force,
-                     fmt=args.format)
+                     fmt=args.format, agents=agents or None)
 
 
 def cmd_hook(args: argparse.Namespace) -> int:

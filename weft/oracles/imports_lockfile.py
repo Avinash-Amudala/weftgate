@@ -166,9 +166,10 @@ def _installed_dists(name: str) -> list[str]:
 class ImportsLockfileOracle(BaseOracle):
     name = "imports_lockfile"
     kinds: tuple[str, ...] = ("import",)
-    version = "3"
+    version = "4"
 
-    _PROVIDED = "lang TEXT NOT NULL, name TEXT NOT NULL, dist TEXT NOT NULL, source TEXT NOT NULL"
+    _PROVIDED = ("lang TEXT NOT NULL, name TEXT NOT NULL, dist TEXT NOT NULL, "
+                 "source TEXT NOT NULL, core INTEGER NOT NULL")
     # kind: "root" (importable from a source root), "nested" (a package dir deeper in the
     # tree, importable only with sys.path help), "alias" (tsconfig paths / baseUrl / dir)
     _LOCAL = "lang TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, source TEXT NOT NULL"
@@ -177,7 +178,7 @@ class ImportsLockfileOracle(BaseOracle):
     # --- index -----------------------------------------------------------------
 
     def build(self, ctx: Context) -> None:
-        provided: list[tuple[str, str, str, str]] = []
+        provided: list[tuple[str, str, str, str, int]] = []
         local: list[tuple[str, str, str, str]] = []
         sources: list[tuple[str, str, str]] = []
         files = ctx.files()
@@ -198,8 +199,10 @@ class ImportsLockfileOracle(BaseOracle):
             if text is None:
                 continue
             dists, own = _parse_manifest(base, text, ctx, rel)
+            core = _core_dists(base, text) if lang == "python" else set()
             sources.append((lang, rel, _source_kind(base, text)))
-            provided.extend((lang, norm(d) if lang == "python" else d, d, rel) for d in dists)
+            provided.extend((lang, norm(d) if lang == "python" else d, d, rel,
+                             1 if d in core else 0) for d in dists)
             local.extend((lang, o, "root", rel) for o in own)
             if lang == "python":
                 # Every Python manifest marks a project root (a monorepo's backend/, an
@@ -241,11 +244,15 @@ class ImportsLockfileOracle(BaseOracle):
         sources = [str(r[0]) for r in rows]
         lockfiles = [str(r[0]) for r in rows if str(r[1]) == "lockfile"]
         provided: dict[str, list[tuple[str, str]]] = {}
-        for name, dist, source in ns.query(
-            "SELECT name, dist, source FROM {t:provided} WHERE lang=? ORDER BY name, dist, source",
+        core: dict[str, set[str]] = {}
+        for name, dist, source, is_core in ns.query(
+            "SELECT name, dist, source, core FROM {t:provided} WHERE lang=? "
+            "ORDER BY name, dist, source",
             (lang,),
         ):
             provided.setdefault(str(name), []).append((str(dist), str(source)))
+            if int(is_core):
+                core.setdefault(str(source), set()).add(str(name))
         local: set[str] = set()
         nested: set[str] = set()
         aliases: set[str] = set()
@@ -260,7 +267,7 @@ class ImportsLockfileOracle(BaseOracle):
                     aliases.add(str(name))
                 case "dir":
                     dirs.add(str(name))
-        return _Index(lang, sources, provided, local, nested, aliases, dirs, lockfiles)
+        return _Index(lang, sources, provided, local, nested, aliases, dirs, lockfiles, core)
 
     # --- extract ---------------------------------------------------------------
 
@@ -329,14 +336,16 @@ class ImportsLockfileOracle(BaseOracle):
                        f"by {', '.join(related[:3])}", related[:3])
         if optional:
             return self.review(
-                claim, f"optional import {top!r} (guarded by try/except) is not in the lockfile")
+                claim, f"optional import {top!r} (guarded by try/except) is not in the lockfile",
+                did_you_mean(top, index.dist_names() | index.local))
         if top in index.nested:
             return self.review(
                 claim, f"import {top!r} matches a package directory deeper in the repo; it is "
                        f"importable only if that directory is on sys.path (declare the source "
                        f"root in pyproject.toml to make this exact)")
         sugg = did_you_mean(top, index.dist_names() | index.local)
-        if not index.has_lockfile and index.env_coverage() < 0.6:
+        coverage = index.env_coverage(claim.location.file)
+        if not index.has_lockfile and coverage < 0.6:
             # Manifests list direct dependencies only. Without a lockfile, and without an
             # environment that demonstrably matches the project, absence is not proven.
             hint = f"; did you mean {sugg[0]}?" if sugg else ""
@@ -347,7 +356,7 @@ class ImportsLockfileOracle(BaseOracle):
         where = ", ".join(index.lockfiles or index.sources)
         if not index.has_lockfile:
             where += (f" and not installed in this environment (which has "
-                      f"{index.env_coverage():.0%} of the declared packages)")
+                      f"{coverage:.0%} of the project's required packages)")
         reason = f"import {top!r} is not in {where} or the standard library (slopsquat risk)"
         return self.reject(claim, reason, sugg)
 
@@ -379,7 +388,8 @@ class ImportsLockfileOracle(BaseOracle):
                 claim, f"package {top!r} is in node_modules but not in any lockfile or "
                        f"package.json; add it so it works off this machine")
         if optional:
-            return self.review(claim, f"optional import {top!r} is not in the lockfile")
+            return self.review(claim, f"optional import {top!r} is not in the lockfile",
+                               did_you_mean(top, index.dist_names() | index.local))
         sugg = did_you_mean(top, index.dist_names() | index.local)
         scope = top.split("/")[0] if top.startswith("@") and "/" in top else ""
         if scope and any(d.startswith(scope + "/") for d in index.dist_names()):
@@ -415,6 +425,7 @@ class _Index:
         aliases: set[str] | None = None,
         dirs: set[str] | None = None,
         lockfiles: list[str] | None = None,
+        core: dict[str, set[str]] | None = None,
     ) -> None:
         self.lang = lang
         self.sources = sources
@@ -424,24 +435,36 @@ class _Index:
         self.aliases = aliases or set()  # tsconfig path patterns, plus "baseUrl:<dir>"
         self.dirs = dirs or set()
         self.lockfiles = lockfiles or []  # sources that enumerate the whole resolved tree
-        self._coverage: float | None = None
+        self.core = core or {}  # manifest -> mandatory (non-optional, non-dev) dist names
+        self._coverage: dict[str, float] = {}
 
     @property
     def has_lockfile(self) -> bool:
         return bool(self.lockfiles)
 
-    def env_coverage(self) -> float:
-        """Share of the declared distributions installed in this interpreter: when high,
-        the running environment *is* the project's, and a name installed nowhere is a
-        much stronger absence signal than a manifest alone."""
-        if self._coverage is None:
-            dists = {norm(d) for d in self.dist_names()}
-            if not dists or self.lang != "python":
-                self._coverage = 0.0
-            else:
-                installed = {norm(d) for ds in _all_installed_dists() for d in ds}
-                self._coverage = len(dists & installed) / len(dists)
-        return self._coverage
+    def env_coverage(self, from_file: str = "") -> float:
+        """Share of the *mandatory* dependencies of the importing file's project that are
+        installed in this interpreter. When high, the running environment is the
+        project's own, and a name installed nowhere is a much stronger absence signal
+        than a manifest alone. Optional and dev groups are excluded so a partial
+        install does not hide the signal."""
+        if self.lang != "python":
+            return 0.0
+        project = _nearest_project_dir(from_file, self.core)
+        if project in self._coverage:
+            return self._coverage[project]
+        wanted: set[str] = set()
+        for source, names in self.core.items():
+            if os.path.dirname(source) == project:
+                wanted |= names
+        if not wanted:
+            wanted = {n for names in self.core.values() for n in names}
+        if not wanted:
+            self._coverage[project] = 0.0
+            return 0.0
+        installed = {norm(d) for ds in _all_installed_dists() for d in ds}
+        self._coverage[project] = len(wanted & installed) / len(wanted)
+        return self._coverage[project]
 
     def dist_names(self) -> set[str]:
         return {d for hits in self.provided.values() for d, _ in hits}
@@ -614,6 +637,49 @@ def _probably_provides(dist: str, top: str) -> bool:
 # --- manifests --------------------------------------------------------------------------------
 
 
+def _nearest_project_dir(from_file: str, core: dict[str, set[str]]) -> str:
+    """Directory of the manifest closest above ``from_file`` ('' for the repo root)."""
+    dirs = {os.path.dirname(source) for source in core}
+    parts = from_file.replace(os.sep, "/").split("/")[:-1]
+    for depth in range(len(parts), -1, -1):
+        rel = "/".join(parts[:depth])
+        if rel in dirs:
+            return rel
+    return ""
+
+
+def _core_dists(base: str, text: str) -> set[str]:
+    """Mandatory dependencies only: what must be installed for the project to run."""
+    try:
+        match base:
+            case "pyproject.toml":
+                data = load_toml(text)
+                out: set[str] = set()
+                project = data.get("project", {}) if isinstance(data.get("project"), dict) else {}
+                for req in project.get("dependencies", []) or []:
+                    if isinstance(req, str) and (n := _req_name(req)):
+                        out.add(n)
+                tool = data.get("tool", {}) if isinstance(data.get("tool"), dict) else {}
+                poetry = tool.get("poetry", {}) if isinstance(tool.get("poetry"), dict) else {}
+                out |= {k for k in (poetry.get("dependencies", {}) or {}) if k != "python"}
+                return out
+            case "setup.cfg":
+                cp = configparser.ConfigParser()
+                cp.read_string(text)
+                if cp.has_option("options", "install_requires"):
+                    return {n for ln in cp.get("options", "install_requires").splitlines()
+                            if (n := _req_name(ln))}
+                return set()
+            case "Pipfile":
+                return set(load_toml(text).get("packages", {}) or {})
+            case _:
+                if base.startswith("requirements") and base.endswith(".txt"):
+                    return _parse_requirements(text)
+    except (ValueError, TypeError, AttributeError, configparser.Error):
+        return set()
+    return set()
+
+
 def _source_kind(base: str, text: str) -> str:
     """'lockfile' when the file enumerates the resolved tree (or pins every line),
     else 'manifest'."""
@@ -721,6 +787,20 @@ def _parse_pyproject(data: dict[str, Any]) -> tuple[set[str], set[str]]:
     for req in uv.get("dev-dependencies", []) or []:
         if isinstance(req, str) and (n := _req_name(req)):
             dists.add(n)
+    # hatch environments and pdm dev groups declare dependencies too
+    hatch = tool.get("hatch", {}) if isinstance(tool.get("hatch"), dict) else {}
+    for env in (hatch.get("envs", {}) or {}).values():
+        if not isinstance(env, dict):
+            continue
+        for key in ("dependencies", "extra-dependencies"):
+            for req in env.get(key, []) or []:
+                if isinstance(req, str) and (n := _req_name(req)):
+                    dists.add(n)
+    pdm = tool.get("pdm", {}) if isinstance(tool.get("pdm"), dict) else {}
+    for reqs in (pdm.get("dev-dependencies", {}) or {}).values():
+        for req in reqs or []:
+            if isinstance(req, str) and (n := _req_name(req)):
+                dists.add(n)
     return dists, own
 
 

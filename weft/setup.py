@@ -39,6 +39,24 @@ CLAUDE_HOOK = {
 }
 MCP_ENTRY = {"command": "weft", "args": ["mcp"]}
 
+# Project-level MCP config files per agent (merged, never clobbered). Agents whose
+# MCP config is only global get a snippet printed instead.
+AGENT_FILES: dict[str, tuple[str, str]] = {
+    "claude": (".mcp.json", "mcpServers"),  # Claude Code (plus the PreToolUse hook)
+    "cursor": (".cursor/mcp.json", "mcpServers"),
+    "vscode": (".vscode/mcp.json", "servers"),  # VS Code / GitHub Copilot agent mode
+}
+AGENT_SNIPPETS: dict[str, str] = {
+    "codex": ("# ~/.codex/config.toml\n[mcp_servers.weft]\ncommand = \"weft\"\n"
+              "args = [\"mcp\"]\n"),
+    "windsurf": ("# ~/.codeium/windsurf/mcp_config.json\n"
+                 "{\"mcpServers\": {\"weft\": {\"command\": \"weft\", \"args\": [\"mcp\"]}}}\n"),
+    "claude-desktop": ("# claude_desktop_config.json\n"
+                       "{\"mcpServers\": {\"weft\": {\"command\": \"weft\", "
+                       "\"args\": [\"mcp\"]}}}\n"),
+}
+ALL_AGENTS = tuple(AGENT_FILES) + tuple(AGENT_SNIPPETS)
+
 
 # --- weft setup --------------------------------------------------------------------------
 
@@ -49,10 +67,19 @@ def run(
     dry_run: bool = False,
     force: bool = False,
     fmt: str = "text",
+    agents: list[str] | None = None,
 ) -> int:
     repo_root = os.path.abspath(repo_root)
     stack = detect_stack(repo_root)
     plan: list[tuple[str, str, str]] = []  # (action, path, content-or-note)
+    wanted = list(agents) if agents else (["claude"] if hooks else [])
+    if "all" in wanted:
+        wanted = list(ALL_AGENTS)
+    unknown = [a for a in wanted if a not in ALL_AGENTS]
+    if unknown:
+        raise ValueError(f"unknown agent(s) {', '.join(unknown)}; choose from "
+                         f"{', '.join(ALL_AGENTS)} or 'all'")
+    snippets: dict[str, str] = {}
 
     existing = repo_config_path(repo_root)
     if existing is None or force:
@@ -60,17 +87,20 @@ def run(
     else:
         plan.append(("keep", os.path.relpath(existing, repo_root), "existing config kept"))
 
-    if hooks:
-        if os.path.isdir(os.path.join(repo_root, ".git")):
-            plan.append(("write", ".git/hooks/pre-commit", PRE_COMMIT))
+    if hooks and os.path.isdir(os.path.join(repo_root, ".git")):
+        plan.append(("write", ".git/hooks/pre-commit", PRE_COMMIT))
+    if "claude" in wanted and hooks:
         settings_path = os.path.join(repo_root, ".claude", "settings.json")
         merged, changed = merge_claude_settings(_read_json(settings_path))
         plan.append(("write" if changed else "keep", ".claude/settings.json",
                      json.dumps(merged, indent=2) + "\n"))
-        mcp_path = os.path.join(repo_root, ".mcp.json")
-        mcp_cfg, changed = merge_mcp_config(_read_json(mcp_path))
-        plan.append(("write" if changed else "keep", ".mcp.json",
-                     json.dumps(mcp_cfg, indent=2) + "\n"))
+    for agent in wanted:
+        if agent in AGENT_FILES:
+            rel, key = AGENT_FILES[agent]
+            cfg, changed = merge_mcp_config(_read_json(os.path.join(repo_root, rel)), key)
+            plan.append(("write" if changed else "keep", rel, json.dumps(cfg, indent=2) + "\n"))
+        else:
+            snippets[agent] = AGENT_SNIPPETS[agent]
 
     written: list[str] = []
     if not dry_run:
@@ -92,8 +122,10 @@ def run(
         "repo_root": repo_root,
         "stack": stack,
         "dry_run": dry_run,
+        "agents": wanted,
         "plan": [{"action": a, "path": p} for a, p, _ in plan],
         "written": written,
+        "snippets": snippets,
         "index": index_report,
     }
     if fmt == "json":
@@ -157,13 +189,15 @@ def merge_claude_settings(existing: dict[str, Any]) -> tuple[dict[str, Any], boo
     return settings, True
 
 
-def merge_mcp_config(existing: dict[str, Any]) -> tuple[dict[str, Any], bool]:
+def merge_mcp_config(
+    existing: dict[str, Any], key: str = "mcpServers"
+) -> tuple[dict[str, Any], bool]:
     cfg = dict(existing)
-    servers = dict(cfg.get("mcpServers") or {})
+    servers = dict(cfg.get(key) or {})
     if "weft" in servers:
         return cfg, False
     servers["weft"] = dict(MCP_ENTRY)
-    cfg["mcpServers"] = servers
+    cfg[key] = servers
     return cfg, True
 
 
@@ -205,9 +239,13 @@ def _render_setup(summary: dict[str, Any], plan: list[tuple[str, str, str]]) -> 
         lines.append(f"  index  {name:18} {state}")
     for name, err in sorted((index.get("sync_errors") or {}).items()):
         lines.append(f"  !      {name}: {err}")
-    if not any(a == "write" and p.startswith(".claude") for a, p, _ in plan):
+    for agent, snippet in sorted((summary.get("snippets") or {}).items()):
+        lines.append(f"  {agent}: this agent keeps MCP config globally; add:")
+        lines.extend("      " + ln for ln in snippet.rstrip("\n").splitlines())
+    if not summary.get("agents"):
         lines.append("  hint   run `weft setup --hooks` to wire git pre-commit, the Claude Code "
-                     "PreToolUse hook, and the MCP server entry")
+                     "PreToolUse hook, and the MCP server entry; add --agents cursor,vscode,all "
+                     "for other agents")
     return "\n".join(lines)
 
 

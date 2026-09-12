@@ -114,3 +114,28 @@ def test_reconstruct_content_shapes(tmp_path):
         {"old_string": "", "new_string": "c = 3\n"}]}) == "a = 9\nb = 2\nc = 3\n"
     assert setup.reconstruct_content("Bash", {"file_path": p}) is None
     assert setup.reconstruct_content("Write", {"file_path": p}) is None
+
+
+def test_setup_agents_write_project_configs_and_print_snippets(tmp_path, capsys):
+    root = _repo(tmp_path)
+    write(root, ".vscode/mcp.json", json.dumps({"servers": {"other": {"command": "x"}}}))
+    assert cli_main(["--repo", root, "--format", "json", "setup", "--agents", "all"]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert set(summary["snippets"]) == {"codex", "windsurf", "claude-desktop"}
+    assert json.load(open(os.path.join(root, ".mcp.json")))["mcpServers"]["weft"]["args"] == [
+        "mcp"]
+    assert "weft" in json.load(open(os.path.join(root, ".cursor", "mcp.json")))["mcpServers"]
+    vscode = json.load(open(os.path.join(root, ".vscode", "mcp.json")))["servers"]
+    assert set(vscode) == {"other", "weft"}
+    # No Claude hook without --hooks; text mode prints the snippets.
+    assert not os.path.exists(os.path.join(root, ".claude", "settings.json"))
+    assert setup.run(root, agents=["codex"]) == 0
+    out = capsys.readouterr().out
+    assert "[mcp_servers.weft]" in out
+    try:
+        setup.run(root, agents=["nope"])
+    except ValueError as exc:
+        assert "unknown agent" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("unknown agent accepted")
+    capsys.readouterr()

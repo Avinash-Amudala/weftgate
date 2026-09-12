@@ -35,7 +35,7 @@ from typing import Any
 
 from ..change import Change, Region
 from ..config import load_toml
-from ..oracle import BaseOracle, Context, OracleAPI
+from ..oracle import BaseOracle, Context, OracleAPI, soften_docs
 from ..suggest import did_you_mean
 from ..types import Claim, Finding, Location
 
@@ -275,9 +275,9 @@ class ImportsLockfileOracle(BaseOracle):
         claims: list[Claim] = []
         for region in change.added_regions():
             if region.file.endswith(_PY_SUFFIXES):
-                claims.extend(_extract_python(region))
+                claims.extend(soften_docs(_extract_python(region), region.file))
             elif region.file.endswith(_JS_SUFFIXES):
-                claims.extend(_extract_js(region))
+                claims.extend(soften_docs(_extract_js(region), region.file))
         return claims
 
     # --- check -----------------------------------------------------------------

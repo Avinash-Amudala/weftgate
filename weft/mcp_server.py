@@ -17,7 +17,7 @@ import os
 import sys
 from typing import Any, TextIO
 
-from . import __version__, gate
+from . import __version__, gate, ledger
 from .change import Change
 from .config import find_repo_root
 
@@ -125,14 +125,18 @@ def call_tool(
         case "check_change":
             change = _change_from_args(args, repo)
             with gate.Session(repo, store_path=store_path) as s:
-                return s.check_change(change).to_dict()
+                result = s.check_change(change)
+            ledger.record(result, repo, "mcp")
+            return result.to_dict()
         case "check_claim":
             try:
                 claims = gate.claims_from_json(args.get("claims", []))
             except (ValueError, TypeError) as exc:
                 raise ToolError(f"invalid claims: {exc}") from exc
             with gate.Session(repo, store_path=store_path) as s:
-                return s.check_claims(claims, run=bool(args.get("run", False))).to_dict()
+                result = s.check_claims(claims, run=bool(args.get("run", False)))
+            ledger.record(result, repo, "mcp")
+            return result.to_dict()
         case "audit":
             from .eval import audit
 

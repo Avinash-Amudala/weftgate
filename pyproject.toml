@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "weft"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A verification gate for coding agents that checks the wiring, not the spelling."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -44,12 +44,40 @@ env_vars = "weft.oracles.env_vars:register"
 imports_lockfile = "weft.oracles.imports_lockfile:register"
 routes_fastapi = "weft.oracles.routes_fastapi:register"
 
+[project.urls]
+Homepage = "https://github.com/Avinash-Amudala/weft"
+Changelog = "https://github.com/Avinash-Amudala/weft/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Avinash-Amudala/weft/issues"
+
+[tool.hatch.version]
+path = "weft/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["weft"]
+
+[tool.hatch.build.targets.sdist]
+include = ["weft/", "tests/", "docs/", "scripts/", "README.md", "CHANGELOG.md", "LICENSE",
+           "NOTICE", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md", "weft.toml",
+           ".env.example", "action.yml", ".pre-commit-hooks.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error::DeprecationWarning:weft.*"]
+
+[tool.coverage.run]
+source = ["weft"]
+omit = ["weft/__main__.py"]
+
+[tool.coverage.report]
+skip_covered = false
+show_missing = true
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
+[tool.ruff.format]
+quote-style = "double"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

@@ -162,6 +162,23 @@ def module_of_file(rel: str, roots: Sequence[str] = ("", "src", "lib")) -> str |
     return None
 
 
+DOCS_DIRS = frozenset({"docs", "doc", "documentation", "examples-docs", "snippets"})
+
+
+def is_docs_path(rel: str) -> bool:
+    """Files under a documentation directory hold illustrative snippets: every claim
+    from them is soft (review at most), never a block."""
+    parts = rel.replace(os.sep, "/").split("/")[:-1]
+    return any(p.lower() in DOCS_DIRS for p in parts)
+
+
+def soften_docs(claims: list[Claim], rel: str) -> list[Claim]:
+    if not is_docs_path(rel):
+        return claims
+    return [Claim(c.kind, c.subject, c.location, {**c.attrs, "docs": True}, False, c.source)
+            for c in claims]
+
+
 PROJECT_MARKERS = ("pyproject.toml", "setup.cfg", "setup.py", "Pipfile", "requirements.txt",
                    "requirements-dev.txt", "manage.py")
 DEFAULT_ROOTS = ("", "src", "lib")

@@ -1,0 +1,45 @@
+name: release
+# Tag a version to publish: `git tag v0.1.0 && git push origin v0.1.0`.
+# Publishing uses PyPI trusted publishing (no token in the repo): register this
+# workflow as a trusted publisher for the project on PyPI first, and make sure
+# the distribution name in pyproject.toml is one you own (see scripts/rename.sh).
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[all,dev]" build twine
+      - run: ruff check . && mypy weft && python -m weft.selftest && pytest -q
+      - name: tag matches the package version
+        run: |
+          set -euo pipefail
+          v=$(python -c "import weft; print(weft.__version__)")
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "tag ${GITHUB_REF_NAME} != v$v"; exit 1; }
+      - run: python -m build && twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --notes-file <(sed -n "/^## \[${GITHUB_REF_NAME#v}\]/,/^## \[/p" CHANGELOG.md | sed '$d')

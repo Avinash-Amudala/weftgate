@@ -1,24 +1,37 @@
 name: ci
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: test (py${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13"]
+        include:
+          - os: macos-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.12"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[all,dev]"
       - run: ruff check .
+      - run: ruff format --check .
       - run: mypy weft
       - run: python -m weft.selftest
-      - run: pytest -q
+      - run: pytest -q --cov=weft --cov-report=term-missing --cov-fail-under=85
       - name: mutation harness (fixture; an upper bound, not a field number)
         run: weft eval mutate --fixture --seed 13
+      - name: weft audits itself
+        run: weft audit --format=github
 
   core-only:
     # No optional extras installed: everything heavier than the standard library
@@ -26,12 +39,26 @@ jobs:
     # server must still serve without the `mcp` package.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: python -c "import mcp" && exit 1 || echo "mcp extra absent, as intended"
       - run: python -m weft.selftest
       - run: pytest -q
-      - run: weft --repo . audit --format=github
+      - run: weft audit --format=github
+
+  package:
+    # The wheel builds and installs cleanly from scratch, and the console script works.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - run: pip install dist/*.whl
+      - run: cd / && weft --version && python -m weft.selftest

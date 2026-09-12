@@ -1,0 +1,38 @@
+# Changelog
+
+All notable changes to weft are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
+
+## [Unreleased]
+
+## [0.1.0] - 2026-09-12
+
+The verification gate.
+
+### Added
+- Three Tier 0 oracles, standard library only: `env_vars` (reads vs declarations across
+  dotenv files, settings schemas, Dockerfile/compose, code defaults), `imports_lockfile`
+  (imports vs lockfiles and manifests for Python and Node, with import-name aliases,
+  tsconfig path aliases, monorepo and nested project roots), `routes_fastapi` (routes
+  vs handlers and `include_router` wiring, built statically with `ast`).
+- Diff mode (file, new content, unified diff, git working tree or staged) and claim
+  mode (structured claims, including route existence and outcome claims).
+- The honesty gate: outcome claims graded PROVEN / PLAUSIBLE / NOT_OBSERVED /
+  CONTRADICTED; never PROVEN without machine-checkable evidence; re-runs and probes
+  are opt-in and allowlisted.
+- Per-repo SQLite index with atomic per-oracle tables and incremental sync (git diff
+  plus untracked files, fingerprint fallback without git).
+- A CLI and a standard-library stdio MCP server with an output-parity test; a Claude
+  Code PreToolUse hook adapter; `weft setup` writing config, index, git pre-commit
+  hook, and MCP config for Claude Code, Cursor, and VS Code; a GitHub Action;
+  pre-commit hooks.
+- Measurement: a seeded mutation harness that reports detected, blocked, and
+  correctly suggested separately; an audit sweep; an offline self-test; field
+  results on six open-source repositories.
+- An oracle-authoring guide and a scaffold script.
+
+### Verdict rules worth knowing
+- A verdict blocks only on a positive, machine-checkable falsehood. A missing index,
+  an uninstalled extra, a dynamic reference, a documentation snippet, a repo with no
+  declaration source, or a name absent from a manifest without a lockfile all soften
+  to review or unverifiable.

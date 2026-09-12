@@ -34,6 +34,7 @@ from ..oracle import (
     file_of_module,
     module_of_file,
     project_roots,
+    soften_docs,
 )
 from ..suggest import did_you_mean
 from ..types import Claim, Finding, Location
@@ -150,7 +151,7 @@ class RoutesFastAPIOracle(BaseOracle):
         claims: list[Claim] = []
         for region in change.added_regions():
             if region.file.endswith(".py"):
-                claims.extend(self._extract_region(region, ctx))
+                claims.extend(soften_docs(self._extract_region(region, ctx), region.file))
         return claims
 
     def _extract_region(self, region: Region, ctx: Context) -> list[Claim]:

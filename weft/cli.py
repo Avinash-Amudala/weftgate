@@ -5,7 +5,9 @@ Commands:
   weft check --path REL --content FILE|-          verify content that is not on disk yet
   weft claim '<json>'|@file|-  [--run]            verify structured claims (claim mode)
   weft audit [paths...]                           sweep the repo for latent broken edges
-  weft index [--rebuild] [--status]               build/refresh the index, or show it
+  weft index [--rebuild] [--status] [--show X]    build/refresh the index, show it, or dump it
+  weft doctor                                     explain the setup and what to fix
+  weft ledger [--clear]                           blocked changes caught before they shipped
   weft suggest KIND SUBJECT                       did-you-mean for one reference
   weft eval mutate [--seed N] [--fixture]         mutation harness, reproducible
   weft setup [--hooks] [--agents a,b] [--dry-run] detect stack, write config, build index
@@ -123,6 +125,13 @@ def build_parser() -> argparse.ArgumentParser:
     i = sub.add_parser("index", help="build or refresh the index")
     i.add_argument("--rebuild", action="store_true")
     i.add_argument("--status", action="store_true")
+    i.add_argument("--show", choices=["env", "routes", "imports"],
+                   help="dump what an oracle indexed: declared env names, the route table, "
+                        "or provided packages")
+
+    sub.add_parser("doctor", help="explain the setup and what to fix")
+    lg = sub.add_parser("ledger", help="blocked changes caught before they shipped")
+    lg.add_argument("--clear", action="store_true", help="delete the ledger")
 
     s = sub.add_parser("suggest", help="did-you-mean for one reference")
     s.add_argument("kind")
@@ -161,7 +170,10 @@ def _repo(args: argparse.Namespace, hint: str | None = None) -> str:
     return find_repo_root(hint or os.getcwd())
 
 
-def _emit(result: GateResult, fmt: str) -> int:
+def _emit(result: GateResult, fmt: str, repo: str = ".", surface: str = "cli") -> int:
+    from . import ledger
+
+    ledger.record(result, repo, surface)
     print(render(result, fmt))
     return 1 if result.stats.get("blocking") else 0
 
@@ -185,9 +197,17 @@ def cmd_check(args: argparse.Namespace) -> int:
         else:
             first = next((t for t in targets if os.path.exists(t)), None)
             repo = _repo(args, first)
-            change = Change.combine(Change.from_path_or_diff(t, None, repo) for t in targets)
+            resolved: list[str] = []
+            for t in targets:
+                # A relative target that does not exist from the cwd is repo-relative.
+                if not os.path.exists(t) and os.path.exists(os.path.join(repo, t)):
+                    t = os.path.join(repo, t)
+                elif not os.path.exists(t) and not _looks_like_diff(t):
+                    raise SystemExit(f"no such file or directory: {t}")
+                resolved.append(t)
+            change = Change.combine(Change.from_path_or_diff(t, None, repo) for t in resolved)
     with gate.Session(repo, store_path=args.store) as session:
-        return _emit(session.check_change(change), args.format)
+        return _emit(session.check_change(change), args.format, repo)
 
 
 def cmd_claim(args: argparse.Namespace) -> int:
@@ -203,8 +223,9 @@ def cmd_claim(args: argparse.Namespace) -> int:
         claims = gate.claims_from_json(data)
     except (ValueError, TypeError) as exc:
         raise SystemExit(f"invalid claims: {exc}") from exc
-    with gate.Session(_repo(args), store_path=args.store) as session:
-        return _emit(session.check_claims(claims, run=args.run), args.format)
+    repo = _repo(args)
+    with gate.Session(repo, store_path=args.store) as session:
+        return _emit(session.check_claims(claims, run=args.run), args.format, repo)
 
 
 def cmd_audit(args: argparse.Namespace) -> int:
@@ -224,6 +245,12 @@ def cmd_audit(args: argparse.Namespace) -> int:
 def cmd_index(args: argparse.Namespace) -> int:
     repo = _repo(args)
     with gate.Session(repo, store_path=args.store) as session:
+        if args.show:
+            session.sync()
+            dump = _index_dump(session, args.show)
+            print(json.dumps(dump, indent=2, sort_keys=True) if args.format == "json"
+                  else _render_dump(args.show, dump))
+            return 0
         if args.status:
             info: dict[str, Any] = session.status()
         else:
@@ -255,6 +282,63 @@ def _render_index(info: dict[str, Any], status: bool) -> str:
     for name, err in sorted((info.get("sync_errors") or {}).items()):
         lines.append(f"  ! {name}: {err}")
     return "\n".join(lines)
+
+
+def _index_dump(session: gate.Session, what: str) -> Any:
+    from .oracles.env_vars import describe_declarations
+    from .oracles.routes_fastapi import describe_routes
+
+    match what:
+        case "env":
+            return describe_declarations(session.ctx)
+        case "routes":
+            return describe_routes(session.ctx)
+        case _:
+            ns = session.store.namespace("imports_lockfile")
+            if not ns.exists("provided"):
+                return {}
+            out: dict[str, dict[str, list[str]]] = {}
+            for lang, dist, source in ns.query(
+                "SELECT DISTINCT lang, dist, source FROM {t:provided} ORDER BY lang, dist, source"
+            ):
+                out.setdefault(str(lang), {}).setdefault(str(dist), []).append(str(source))
+            return out
+
+
+def _render_dump(what: str, dump: Any) -> str:
+    if what == "env":
+        rows = [f"{name:40} {', '.join(files)}" for name, files in dump.items()]
+        return "\n".join(rows) or "(none)"
+    if what == "routes":
+        rows = [f"{r['method']:9} {r['path']:40} {r['handler']:30} {r['file']}:{r['line']}"
+                for r in dump]
+        return "\n".join(rows) or "(no routes)"
+    lines = []
+    for lang, dists in dump.items():
+        lines.append(f"[{lang}]")
+        lines.extend(f"  {dist:40} {', '.join(sources)}" for dist, sources in dists.items())
+    return "\n".join(lines) or "(no lockfiles or manifests)"
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from . import doctor
+
+    report = doctor.run(_repo(args), store_path=args.store)
+    print(doctor.to_json(report) if args.format == "json" else doctor.render_text(report))
+    return 0 if report.get("ok") else 1
+
+
+def cmd_ledger(args: argparse.Namespace) -> int:
+    from . import ledger
+
+    if args.clear:
+        ledger.clear()
+        print("ledger cleared")
+        return 0
+    info = ledger.summary()
+    print(json.dumps(info, indent=2, sort_keys=True) if args.format == "json"
+          else ledger.render_text(info))
+    return 0
 
 
 def cmd_suggest(args: argparse.Namespace) -> int:
@@ -304,8 +388,12 @@ def cmd_mcp(args: argparse.Namespace) -> int:
 _COMMANDS = {
     "check": cmd_check, "claim": cmd_claim, "audit": cmd_audit, "index": cmd_index,
     "suggest": cmd_suggest, "eval": cmd_eval, "setup": cmd_setup, "hook": cmd_hook,
-    "mcp": cmd_mcp,
+    "mcp": cmd_mcp, "doctor": cmd_doctor, "ledger": cmd_ledger,
 }
+
+
+def _looks_like_diff(text: str) -> bool:
+    return text.startswith(("diff --git", "--- ", "+++ ", "@@")) or "\n" in text
 
 
 def _read(path: str) -> str:

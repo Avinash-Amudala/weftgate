@@ -29,7 +29,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from ..change import Change, Region
-from ..oracle import BaseOracle, Context, OracleAPI
+from ..oracle import BaseOracle, Context, OracleAPI, soften_docs
 from ..suggest import did_you_mean
 from ..types import Claim, Finding, Location
 
@@ -198,7 +198,7 @@ class EnvVarOracle(BaseOracle):
     def extract(self, change: Change, ctx: Context) -> list[Claim]:
         claims: list[Claim] = []
         for region in change.added_regions():
-            claims.extend(self._extract_region(region))
+            claims.extend(soften_docs(self._extract_region(region), region.file))
         return claims
 
     def _extract_region_text(self, file: str, text: str) -> list[Claim]:

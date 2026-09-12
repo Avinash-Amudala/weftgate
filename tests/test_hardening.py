@@ -322,3 +322,16 @@ def test_optional_import_reviews_with_a_suggestion(tmp_path):
     f = res["htttpx_oauth.oauth2"]
     assert f.level is Level.REVIEW and "optional" in f.reason
     assert f.suggestions == ("httpx-oauth",)
+
+
+def test_documentation_snippets_are_soft(tmp_path):
+    root = str(tmp_path / "repo")
+    write(root, "uv.lock", '[[package]]\nname = "fastapi"\n')
+    write(root, ".env.example", "A=\n")
+    code = "import os\nimport ghostpkg\nx = os.environ['GHOST']\n"
+    res = _run(root, ImportsLockfileOracle(), "docs/src/snippet.py", code)
+    assert res["ghostpkg"].level is Level.REVIEW and res["ghostpkg"].claim.attrs["docs"] is True
+    res = _run(root, EnvVarOracle(), "docs/src/snippet.py", code)
+    assert res["GHOST"].level is Level.REVIEW
+    res = _run(root, ImportsLockfileOracle(), "src/real.py", code)
+    assert res["ghostpkg"].level is Level.REJECT

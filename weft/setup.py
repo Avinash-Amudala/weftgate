@@ -278,6 +278,9 @@ def claude_hook(repo_root: str, stdin_text: str, store_path: str | None = None) 
         print(f"weft hook: skipped ({exc})", file=sys.stderr)
         return 0
     if result.stats.get("blocking"):
+        from . import ledger
+
+        ledger.record(result, root, "hook")
         print("weft blocked this edit: it references something that does not resolve.\n"
               + render_text(result), file=sys.stderr)
         return 2

@@ -223,7 +223,8 @@ def test_claim_mode_wiring_and_surfaces(tmp_path, capsys):
     write(
         root,
         "weft.toml",
-        f'[weft]\noracles = ["env_vars"]\n[weft.honesty]\nallow_commands = ["{PY}"]\n',
+        # A TOML literal string ('...') keeps Windows backslashes intact.
+        f"[weft]\noracles = ['env_vars']\n[weft.honesty]\nallow_commands = ['{PY}']\n",
     )
     ok = f'{PY} -c "import sys; sys.exit(0)"'
     # "custom-runner" is not allowlisted, so run=True must not execute it; its

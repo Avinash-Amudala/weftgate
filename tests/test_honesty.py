@@ -66,7 +66,9 @@ def test_rerun_proves_or_contradicts_only_when_allowed(tmp_path):
     assert grade(OutcomeClaim("tests_pass", {"command": ok}), _policy(run=True)
                  ).verdict is Honesty.PROVEN
     v = grade(OutcomeClaim("tests_pass", {"command": fail}), _policy(run=True))
-    assert v.verdict is Honesty.CONTRADICTED and v.observed["exit_code"] == 3 and "nope" in v.reason
+    assert v.verdict is Honesty.CONTRADICTED and v.observed["exit_code"] == 3
+    assert "nope" in v.observed["output_tail"]
+    assert v.reason == f"re-ran {fail!r}: exit code 3"  # the reason carries no volatile output
     # run=False: never executed, never proven.
     assert grade(OutcomeClaim("tests_pass", {"command": ok}), _policy(run=False)
                  ).verdict is Honesty.NOT_OBSERVED
@@ -75,6 +77,10 @@ def test_rerun_proves_or_contradicts_only_when_allowed(tmp_path):
     sneaky = f"{PY} -c \"open(r'{marker}', 'w').write('x')\""
     v = grade(OutcomeClaim("tests_pass", {"command": sneaky}), Policy(run=True))
     assert v.verdict is Honesty.NOT_OBSERVED and "allowlisted" in v.reason
+    assert not marker.exists()
+    # A refused re-run still grades whatever evidence was supplied.
+    v = grade(OutcomeClaim("tests_pass", {"command": sneaky}, {"exit_code": 1}), Policy(run=True))
+    assert v.verdict is Honesty.CONTRADICTED and "allowlisted" in v.reason
     assert not marker.exists()
     assert Policy().command_allowed("pytest -q tests/") and Policy().command_allowed("npm test")
     assert not Policy().command_allowed("pytest_evil") and not Policy().command_allowed("rm -rf /")
@@ -163,20 +169,24 @@ def test_claim_mode_wiring_and_surfaces(tmp_path, capsys):
     write(root, "weft.toml",
           f'[weft]\noracles = ["env_vars"]\n[weft.honesty]\nallow_commands = ["{PY}"]\n')
     ok = f"{PY} -c \"import sys; sys.exit(0)\""
+    # "custom-runner" is not allowlisted, so run=True must not execute it; its
+    # self-reported exit code is graded instead.
     claims = [{"kind": "tests_pass", "command": ok},
-              {"kind": "tests_pass", "command": "pytest", "evidence": {"exit_code": 1}},
+              {"kind": "tests_pass", "command": "custom-runner", "evidence": {"exit_code": 1}},
               {"kind": "env_var", "subject": "A"}]
     store = str(tmp_path / "i.sqlite")
     with Session(root, store_path=store) as s:
         res = s.check_claims(claims_from_json(claims))
         by = {f.claim.subject: f for f in res.findings}
         assert by[ok].level is Level.REVIEW and by[ok].claim.attrs["honesty"] == "not_observed"
-        assert by["pytest"].level is Level.REJECT
+        assert by["custom-runner"].level is Level.REJECT
         assert by["A"].level is Level.ACCEPT
         res = s.check_claims(claims_from_json(claims), run=True)
         by = {f.claim.subject: f for f in res.findings}
         assert by[ok].level is Level.ACCEPT and by[ok].claim.attrs["honesty"] == "proven"
         assert by[ok].claim.attrs["observed"]["exit_code"] == 0
+        assert by["custom-runner"].level is Level.REJECT
+        assert "allowlisted" in by["custom-runner"].reason
         # Deterministic: same input, same output.
         assert s.check_claims(claims_from_json(claims), run=True).to_dict() == res.to_dict()
     # CLI --run and MCP run=true agree.
@@ -186,7 +196,7 @@ def test_claim_mode_wiring_and_surfaces(tmp_path, capsys):
     via_mcp = call_tool("check_claim", {"repo": root, "claims": claims, "run": True},
                         store_path=store)
     assert via_cli == via_mcp and code == 1  # the contradicted claim blocks
-    prose = claims_from_json([{"kind": "tests_pass", "command": "pytest",
+    prose = claims_from_json([{"kind": "tests_pass", "command": "custom-runner",
                                "evidence": {"exit_code": 1}, "source": "prose"}])
     with Session(root, store_path=store) as s:
         assert s.check_claims(prose).verdict is Level.REVIEW  # prose never rejects

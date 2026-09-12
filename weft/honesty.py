@@ -9,6 +9,7 @@ The ladder, per kind:
 tests_pass
   re-run the named command (opt-in ``run=True``, allowlisted)  exit 0 -> PROVEN
                                                                else   -> CONTRADICTED
+  (a refused or failed re-run falls through to the supplied evidence below)
   a JUnit XML report on disk with tests>0 and no failures/errors       -> PROVEN
   a report with failures or errors                                     -> CONTRADICTED
   a self-reported exit code of 0 / "N passed" output                   -> PLAUSIBLE
@@ -151,23 +152,34 @@ def _grade_tests(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
     detail, evidence = claim.detail, claim.evidence or {}
     command = str(detail.get("command") or evidence.get("command") or "").strip()
     needed = _needed("tests_pass")
+    note = ""
     if policy.run and command:
         if not policy.command_allowed(command):
-            return OutcomeVerdict(
-                Honesty.NOT_OBSERVED,
-                f"refused to re-run {command!r}: not an allowlisted test command "
-                f"(add it to [weft.honesty] allow_commands)", needed=needed)
-        ran = _run(command, policy, str(detail.get("cwd") or ""))
-        if ran is None:
-            return OutcomeVerdict(Honesty.NOT_OBSERVED, f"re-running {command!r} timed out or "
-                                                        f"could not start", needed=needed)
-        code, output = ran
-        if code == 0:
-            return OutcomeVerdict(Honesty.PROVEN, f"re-ran {command!r}: exit code 0",
-                                  observed={"exit_code": 0, "command": command})
-        return OutcomeVerdict(Honesty.CONTRADICTED,
-                              f"re-ran {command!r}: exit code {code}; {_tail(output)}",
-                              observed={"exit_code": code, "command": command})
+            note = (f"refused to re-run {command!r}: not an allowlisted test command "
+                    f"(add it to [weft.honesty] allow_commands)")
+        else:
+            ran = _run(command, policy, str(detail.get("cwd") or ""))
+            if ran is None:
+                note = f"re-running {command!r} timed out or could not start"
+            else:
+                code, output = ran
+                if code == 0:
+                    return OutcomeVerdict(Honesty.PROVEN, f"re-ran {command!r}: exit code 0",
+                                          observed={"exit_code": 0, "command": command})
+                return OutcomeVerdict(Honesty.CONTRADICTED,
+                                      f"re-ran {command!r}: exit code {code}",
+                                      observed={"exit_code": code, "command": command,
+                                                "output_tail": _tail(output)})
+    # No observation of our own: grade what was supplied, noting why we did not run.
+    verdict = _grade_tests_evidence(detail, evidence, policy, needed)
+    if note:
+        verdict.reason = f"{verdict.reason}; {note}"
+    return verdict
+
+
+def _grade_tests_evidence(
+    detail: dict[str, Any], evidence: dict[str, Any], policy: Policy, needed: str
+) -> OutcomeVerdict:
     report = detail.get("report") or evidence.get("report") or evidence.get("junit")
     if report:
         path = str(report)
@@ -331,8 +343,8 @@ def _grade_bug(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
                                                   f"signature is absent",
                                   observed={"exit_code": 0, "signature_present": False})
         return OutcomeVerdict(Honesty.PLAUSIBLE,
-                              f"re-ran {command!r}: signature absent but exit code {code}; "
-                              f"{_tail(output)}", observed={"exit_code": code})
+                              f"re-ran {command!r}: signature absent but exit code {code}",
+                              observed={"exit_code": code, "output_tail": _tail(output)})
     before, after = str(evidence.get("before") or ""), str(evidence.get("after") or "")
     if before or after:
         if signature in after:

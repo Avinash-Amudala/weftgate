@@ -45,6 +45,22 @@ _PY_MANIFESTS = ("poetry.lock", "uv.lock", "Pipfile.lock", "Pipfile", "pyproject
                  "setup.cfg", "environment.yml", "environment.yaml")
 _NODE_MANIFESTS = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
                    "package.json")
+# Lockfiles enumerate the whole resolved tree, so a name absent from one is a proven
+# absence. Manifests list direct dependencies only; a transitive import (starlette via
+# fastapi) is legitimately absent from them.
+_LOCKFILES = ("poetry.lock", "uv.lock", "Pipfile.lock", "package-lock.json",
+              "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock")
+_PINNED = re.compile(r"^\s*[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]*\])?\s*==")
+# Import specs a framework resolves itself; keyed by the package whose presence enables them.
+_FRAMEWORK_ALIASES: dict[str, tuple[str, ...]] = {
+    "@docusaurus/core": ("@site/", "@theme/", "@generated/", "@docusaurus/"),
+    "@sveltejs/kit": ("$lib/", "$app/", "$env/", "$service-worker"),
+    "nuxt": ("#app", "#imports", "#components"),
+    "astro": ("astro:",),
+    "vite": ("virtual:",),
+    "next": ("next/",),
+    "@angular/core": ("@angular/",),
+}
 _REQ_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 _EGG = re.compile(r"[#&]egg=([A-Za-z0-9._-]+)")
 _LOCK_NAME = re.compile(r'^name\s*=\s*"([^"]+)"', re.MULTILINE)
@@ -82,6 +98,11 @@ _ALIASES: dict[str, tuple[str, ...]] = {
                                                                              "azure_identity",
                                                                              "azure_storage_blob"),
     "win32api": ("pywin32",), "win32con": ("pywin32",), "pythoncom": ("pywin32",),
+    "googleapiclient": ("google_api_python_client",), "google_auth_oauthlib": (
+        "google_auth_oauthlib",), "apiclient": ("google_api_python_client",),
+    "oauth2client": ("oauth2client",), "sendgrid": ("sendgrid",), "boto": ("boto",),
+    "botocore": ("botocore",), "aiohttp": ("aiohttp",), "jinja2": ("jinja2",),
+    "markupsafe": ("markupsafe",), "werkzeug": ("werkzeug",), "click": ("click",),
     "Xlib": ("python_xlib",), "yattag": ("yattag",), "pkgutil_resolve_name": (
         "pkgutil_resolve_name",),
 }
@@ -125,6 +146,11 @@ _STDLIB = _stdlib_names()
 _ENV_DISTS: dict[str, list[str]] | None = None
 
 
+def _all_installed_dists() -> list[list[str]]:
+    _installed_dists("")  # populate the cache
+    return list((_ENV_DISTS or {}).values())
+
+
 def _installed_dists(name: str) -> list[str]:
     """Distributions installed in *this* interpreter that provide import ``name``.
     Only ever used to soften a verdict, never to produce a REJECT."""
@@ -146,14 +172,14 @@ class ImportsLockfileOracle(BaseOracle):
     # kind: "root" (importable from a source root), "nested" (a package dir deeper in the
     # tree, importable only with sys.path help), "alias" (tsconfig paths / baseUrl / dir)
     _LOCAL = "lang TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, source TEXT NOT NULL"
-    _SOURCES = "lang TEXT NOT NULL, source TEXT NOT NULL"
+    _SOURCES = "lang TEXT NOT NULL, source TEXT NOT NULL, kind TEXT NOT NULL"
 
     # --- index -----------------------------------------------------------------
 
     def build(self, ctx: Context) -> None:
         provided: list[tuple[str, str, str, str]] = []
         local: list[tuple[str, str, str, str]] = []
-        sources: list[tuple[str, str]] = []
+        sources: list[tuple[str, str, str]] = []
         files = ctx.files()
         roots: set[str] = {"", "src", "lib"}
         for rel in files:
@@ -172,11 +198,18 @@ class ImportsLockfileOracle(BaseOracle):
             if text is None:
                 continue
             dists, own = _parse_manifest(base, text, ctx, rel)
-            sources.append((lang, rel))
+            sources.append((lang, rel, _source_kind(base, text)))
             provided.extend((lang, norm(d) if lang == "python" else d, d, rel) for d in dists)
             local.extend((lang, o, "root", rel) for o in own)
-            if base in ("pyproject.toml", "setup.cfg") and rel.count("/") == 0:
-                roots |= _python_roots(base, text)
+            if lang == "python":
+                # Every Python manifest marks a project root (a monorepo's backend/, an
+                # examples/* app): its directory and src/ become source roots too.
+                project_dir = os.path.dirname(rel)
+                roots.add(project_dir)
+                roots.add(f"{project_dir}/src" if project_dir else "src")
+                if base in ("pyproject.toml", "setup.cfg"):
+                    declared = _python_roots(base, text)
+                    roots |= {f"{project_dir}/{r}" if project_dir else r for r in declared}
         for name in _local_python_names(files, roots):
             local.append(("python", name, "root", "filesystem"))
         for name in _nested_python_packages(files, roots):
@@ -186,7 +219,7 @@ class ImportsLockfileOracle(BaseOracle):
         ns = ctx.store.namespace(self.name)
         ns.rebuild("provided", self._PROVIDED, sorted(set(provided)), indexes=["lang, name"])
         ns.rebuild("local", self._LOCAL, sorted(set(local)), indexes=["lang, name"])
-        ns.rebuild("sources", self._SOURCES, sorted(set(sources)))
+        ns.rebuild("sources", self._SOURCES, sorted(set(sources)), indexes=["lang"])
 
     def sync(self, ctx: Context, since: str | None) -> None:
         ns = ctx.store.namespace(self.name)
@@ -203,8 +236,10 @@ class ImportsLockfileOracle(BaseOracle):
         ns = ctx.store.namespace(self.name)
         if not ns.exists("provided") or not ns.exists("sources"):
             return None
-        sources = [str(r[0]) for r in ns.query(
-            "SELECT source FROM {t:sources} WHERE lang=? ORDER BY source", (lang,))]
+        rows = ns.query("SELECT source, kind FROM {t:sources} WHERE lang=? ORDER BY source",
+                        (lang,))
+        sources = [str(r[0]) for r in rows]
+        lockfiles = [str(r[0]) for r in rows if str(r[1]) == "lockfile"]
         provided: dict[str, list[tuple[str, str]]] = {}
         for name, dist, source in ns.query(
             "SELECT name, dist, source FROM {t:provided} WHERE lang=? ORDER BY name, dist, source",
@@ -225,7 +260,7 @@ class ImportsLockfileOracle(BaseOracle):
                     aliases.add(str(name))
                 case "dir":
                     dirs.add(str(name))
-        return _Index(lang, sources, provided, local, nested, aliases, dirs)
+        return _Index(lang, sources, provided, local, nested, aliases, dirs, lockfiles)
 
     # --- extract ---------------------------------------------------------------
 
@@ -301,8 +336,19 @@ class ImportsLockfileOracle(BaseOracle):
                        f"importable only if that directory is on sys.path (declare the source "
                        f"root in pyproject.toml to make this exact)")
         sugg = did_you_mean(top, index.dist_names() | index.local)
-        reason = (f"import {top!r} is not in {', '.join(index.sources)} or the standard library "
-                  f"(slopsquat risk)")
+        if not index.has_lockfile and index.env_coverage() < 0.6:
+            # Manifests list direct dependencies only. Without a lockfile, and without an
+            # environment that demonstrably matches the project, absence is not proven.
+            hint = f"; did you mean {sugg[0]}?" if sugg else ""
+            return self.review(
+                claim, f"import {top!r} is not a declared dependency in "
+                       f"{', '.join(index.sources)}; it may be transitive (add a lockfile "
+                       f"such as uv.lock or poetry.lock to make this exact){hint}", sugg)
+        where = ", ".join(index.lockfiles or index.sources)
+        if not index.has_lockfile:
+            where += (f" and not installed in this environment (which has "
+                      f"{index.env_coverage():.0%} of the declared packages)")
+        reason = f"import {top!r} is not in {where} or the standard library (slopsquat risk)"
         return self.reject(claim, reason, sugg)
 
     def _check_node(
@@ -319,6 +365,9 @@ class ImportsLockfileOracle(BaseOracle):
         alias = _matching_alias(spec, index.aliases)
         if alias is not None:
             return self.accept(claim, f"resolved via tsconfig paths ({alias})")
+        for enabler, prefixes in _FRAMEWORK_ALIASES.items():
+            if enabler in index.provided and spec.startswith(prefixes):
+                return self.accept(claim, f"a {enabler} framework alias")
         if _base_url_hit(spec, index.aliases, ctx):
             return self.accept(claim, "resolved via tsconfig baseUrl")
         if top.split("/")[0] in index.dirs and not top.startswith("@"):
@@ -332,7 +381,19 @@ class ImportsLockfileOracle(BaseOracle):
         if optional:
             return self.review(claim, f"optional import {top!r} is not in the lockfile")
         sugg = did_you_mean(top, index.dist_names() | index.local)
-        reason = f"package {top!r} is not in {', '.join(index.sources)} (slopsquat risk)"
+        scope = top.split("/")[0] if top.startswith("@") and "/" in top else ""
+        if scope and any(d.startswith(scope + "/") for d in index.dist_names()):
+            return self.review(
+                claim, f"package {top!r} is not in the lockfile, but other {scope}/* packages "
+                       f"are; probably a framework-resolved sub-path rather than a phantom", sugg)
+        if not index.has_lockfile:
+            hint = f"; did you mean {sugg[0]}?" if sugg else ""
+            return self.review(
+                claim, f"package {top!r} is not a declared dependency in "
+                       f"{', '.join(index.sources)}; it may be transitive (commit a lockfile "
+                       f"to make this exact){hint}", sugg)
+        where = ", ".join(index.lockfiles)
+        reason = f"package {top!r} is not in {where} (slopsquat risk)"
         return self.reject(claim, reason, sugg)
 
     def suggest(self, claim: Claim, ctx: Context) -> list[str]:
@@ -353,6 +414,7 @@ class _Index:
         nested: set[str] | None = None,
         aliases: set[str] | None = None,
         dirs: set[str] | None = None,
+        lockfiles: list[str] | None = None,
     ) -> None:
         self.lang = lang
         self.sources = sources
@@ -361,6 +423,25 @@ class _Index:
         self.nested = nested or set()
         self.aliases = aliases or set()  # tsconfig path patterns, plus "baseUrl:<dir>"
         self.dirs = dirs or set()
+        self.lockfiles = lockfiles or []  # sources that enumerate the whole resolved tree
+        self._coverage: float | None = None
+
+    @property
+    def has_lockfile(self) -> bool:
+        return bool(self.lockfiles)
+
+    def env_coverage(self) -> float:
+        """Share of the declared distributions installed in this interpreter: when high,
+        the running environment *is* the project's, and a name installed nowhere is a
+        much stronger absence signal than a manifest alone."""
+        if self._coverage is None:
+            dists = {norm(d) for d in self.dist_names()}
+            if not dists or self.lang != "python":
+                self._coverage = 0.0
+            else:
+                installed = {norm(d) for ds in _all_installed_dists() for d in ds}
+                self._coverage = len(dists & installed) / len(dists)
+        return self._coverage
 
     def dist_names(self) -> set[str]:
         return {d for hits in self.provided.values() for d, _ in hits}
@@ -531,6 +612,19 @@ def _probably_provides(dist: str, top: str) -> bool:
 
 
 # --- manifests --------------------------------------------------------------------------------
+
+
+def _source_kind(base: str, text: str) -> str:
+    """'lockfile' when the file enumerates the resolved tree (or pins every line),
+    else 'manifest'."""
+    if base in _LOCKFILES:
+        return "lockfile"
+    if base.startswith("requirements") and base.endswith(".txt"):
+        lines = [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith(
+            ("#", "-"))]
+        if lines and all(_PINNED.match(ln) for ln in lines):
+            return "lockfile"
+    return "manifest"
 
 
 def _manifest_lang(base: str) -> str | None:

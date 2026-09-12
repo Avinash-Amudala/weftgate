@@ -162,12 +162,41 @@ def module_of_file(rel: str, roots: Sequence[str] = ("", "src", "lib")) -> str |
     return None
 
 
+PROJECT_MARKERS = ("pyproject.toml", "setup.cfg", "setup.py", "Pipfile", "requirements.txt",
+                   "requirements-dev.txt", "manage.py")
+DEFAULT_ROOTS = ("", "src", "lib")
+
+
+def project_roots(ctx: Context, from_file: str | None) -> list[str]:
+    """Source roots to resolve imports from, nearest first: the directories above
+    ``from_file`` that look like a project (a packaging marker file) and their
+    ``src`` dirs, then the repo root, ``src`` and ``lib``. A monorepo with
+    ``backend/pyproject.toml`` resolves ``app.main`` from ``backend/``."""
+    roots: list[str] = []
+    if from_file:
+        parts = from_file.replace(os.sep, "/").split("/")[:-1]
+        for depth in range(len(parts), 0, -1):
+            rel = "/".join(parts[:depth])
+            full = os.path.join(ctx.repo_root, rel)
+            if any(os.path.isfile(os.path.join(full, m)) for m in PROJECT_MARKERS):
+                roots.extend([rel, f"{rel}/src"])
+    for root in DEFAULT_ROOTS:
+        if root not in roots:
+            roots.append(root)
+    return roots
+
+
 def file_of_module(
-    ctx: Context, module: str, roots: Sequence[str] = ("", "src", "lib")
+    ctx: Context,
+    module: str,
+    roots: Sequence[str] | None = None,
+    from_file: str | None = None,
 ) -> str | None:
-    """Repo-relative file for a dotted module, or None if it is not in the repo."""
+    """Repo-relative file for a dotted module, or None if it is not in the repo.
+    ``from_file`` adds the nested project roots above the importing file."""
     rel = module.replace(".", "/")
-    for root in roots:
+    search = list(roots) if roots is not None else project_roots(ctx, from_file)
+    for root in search:
         base = os.path.join(ctx.repo_root, root) if root else ctx.repo_root
         for cand in (f"{rel}.py", f"{rel}/__init__.py"):
             full = os.path.join(base, cand)

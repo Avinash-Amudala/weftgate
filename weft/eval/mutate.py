@@ -173,6 +173,9 @@ def _eligible(f: Finding) -> bool:
             if not f.reason.startswith("in "):
                 return False
             top = str(f.claim.attrs.get("top") or f.claim.subject)
+            if f.claim.attrs.get("lang") == "node":
+                # Plain package names only (a scoped or sub-path spec is harder to strike).
+                return bool(re.fullmatch(r"[a-z0-9][a-z0-9._-]*", top)) and "/" not in top
             # Only where the suggestion can name the import: dist name == import name.
             m = re.search(r" as (\S+)", f.reason)
             return m is not None and norm(m.group(1)) == norm(top) and top.isidentifier()
@@ -213,6 +216,18 @@ def _typo(name: str, rng: random.Random) -> str:
     return name + "x"
 
 
+def _typo_spec(name: str, rng: random.Random) -> str:
+    """Typo for a Node package name (dashes and dots allowed): swap or duplicate a letter."""
+    letters = [i for i, ch in enumerate(name) if ch.isalnum()]
+    if len(letters) < 2:
+        return name + "x"
+    i = rng.choice(letters[:-1])
+    j = i + 1
+    if name[j].isalnum() and name[i] != name[j]:
+        return name[:i] + name[j] + name[i] + name[j + 1:]
+    return name[:i] + name[i] + name[i:]
+
+
 def _make_mutation(c: _Candidate, rng: random.Random, s: Session) -> Mutation | None:
     match c.oracle:
         case "env_vars":
@@ -221,7 +236,7 @@ def _make_mutation(c: _Candidate, rng: random.Random, s: Session) -> Mutation | 
                             expect_suggestion=c.subject, related=mutated)
         case "imports_lockfile":
             top = str(c.attrs.get("top") or c.subject)
-            mutated = _typo(top, rng)
+            mutated = _typo(top, rng) if top.isidentifier() else _typo_spec(top, rng)
             return Mutation("imports_lockfile", "typo_import", c.file, c.line, top, mutated,
                             c.file, expect_suggestion=top, related=mutated)
         case "routes_fastapi":
@@ -268,17 +283,21 @@ def _apply_and_check(s: Session, m: Mutation) -> dict[str, Any]:
     with open(full, encoding="utf-8") as fh:
         original = fh.read()
     lines = original.split("\n")
-    idx = m.line - 1
-    if idx >= len(lines):
+    if m.line - 1 >= len(lines):
         return {"detected": False, "blocked": False, "suggested": False, "error": "line gone"}
-    new_line, n = lines[idx], 0
-    for pattern in _patterns(m):
-        new_line, n = re.subn(pattern, m.mutated, lines[idx], count=1)
+    # A call can span lines (`include_router(\n    router,`): the claim carries the
+    # call's first line, so look a few lines ahead for the token.
+    idx, n, new_line = m.line - 1, 0, ""
+    for idx in range(m.line - 1, min(m.line + 7, len(lines))):
+        for pattern in _patterns(m):
+            new_line, n = re.subn(pattern, m.mutated, lines[idx], count=1)
+            if n:
+                break
         if n:
             break
     if n == 0:
         return {"detected": False, "blocked": False, "suggested": False,
-                "error": "token not found on line"}
+                "error": "token not found near line"}
     lines[idx] = new_line
     try:
         with open(full, "w", encoding="utf-8") as fh:

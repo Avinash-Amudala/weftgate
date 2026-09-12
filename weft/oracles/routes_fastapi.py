@@ -27,7 +27,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..change import Change, Region
-from ..oracle import BaseOracle, Context, OracleAPI, file_of_module, module_of_file
+from ..oracle import (
+    BaseOracle,
+    Context,
+    OracleAPI,
+    file_of_module,
+    module_of_file,
+    project_roots,
+)
 from ..suggest import did_you_mean
 from ..types import Claim, Finding, Location
 
@@ -60,7 +67,7 @@ class _Scan:
 class RoutesFastAPIOracle(BaseOracle):
     name = "routes_fastapi"
     kinds: tuple[str, ...] = ("route_handler", "router_include")
-    version = "2"
+    version = "3"
 
     _SYMBOLS = "file TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, target TEXT NOT NULL"
     _ROUTES = ("file TEXT NOT NULL, line INTEGER NOT NULL, method TEXT NOT NULL, "
@@ -208,7 +215,8 @@ class RoutesFastAPIOracle(BaseOracle):
             if router and router not in symbols:
                 if "*" in symbols:
                     return self.review(claim, f"router {router!r} may come from a star import")
-                sugg = did_you_mean(router, _names_of_kind(symbols, ("assign", "import")))
+                sugg = did_you_mean(router, _names_of_kind(symbols, ("assign", "import",
+                                                                     "param")))
                 return self.reject(claim, f"decorator uses {router!r}, which is not defined or "
                                           f"imported in this file", sugg)
             return self.accept(claim, f"handler {handler!r} defined by the decorator")
@@ -237,10 +245,12 @@ class RoutesFastAPIOracle(BaseOracle):
             if "*" in symbols:
                 return self.review(claim, f"{what} {ref!r} may come from a star import")
             sugg = did_you_mean(head, _names_of_kind(symbols, ("def", "class", "import",
-                                                                "assign")))
+                                                                "assign", "param")))
             return self.reject(claim, f"{what} {ref!r} is not defined or imported in "
                                       f"{claim.location.file}", sugg)
         kind, target = binding
+        if kind == "param":
+            return self.accept(claim, f"{what} {ref!r} is a parameter bound in this file")
         if kind in ("def", "class", "assign") and not rest:
             return self.accept(claim, f"{what} {ref!r} is defined in this file")
         if kind in ("def", "class", "assign") and rest:
@@ -495,14 +505,18 @@ def _module_file(
     if module.startswith("."):
         dots = len(module) - len(module.lstrip("."))
         rest = module.lstrip(".")
-        pkg = module_of_file(from_file) or ""
+        pkg = ""
+        for root in project_roots(ctx, from_file):
+            pkg = module_of_file(from_file, roots=(root,)) or ""
+            if pkg:
+                break
         parts = pkg.split(".") if pkg else []
         if not from_file.endswith("__init__.py"):
             parts = parts[:-1]
         parts = parts[: len(parts) - (dots - 1)] if dots > 1 else parts
         absolute = ".".join(p for p in [*parts, rest] if p)
-        return file_of_module(ctx, absolute) if absolute else None
-    return file_of_module(ctx, module)
+        return file_of_module(ctx, absolute, from_file=from_file) if absolute else None
+    return file_of_module(ctx, module, from_file=from_file)
 
 
 # --- the scanner --------------------------------------------------------------------------
@@ -530,6 +544,12 @@ def _scan_python(text: str) -> _Scan | None:
             scan.symbols.setdefault(node.name, ("def", ""))
             for dec in node.decorator_list:
                 _decorator_route(dec, node, scan)
+        elif isinstance(node, ast.arg):
+            # A parameter is a binding too: `def test(app: FastAPI): @app.get(...)`.
+            scan.symbols.setdefault(node.arg, ("param", ""))
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            # Loop targets, `with ... as x`, unpacking, walrus, comprehension targets.
+            scan.symbols.setdefault(node.id, ("assign", ""))
         elif isinstance(node, ast.ClassDef):
             scan.symbols.setdefault(node.name, ("class", ""))
         elif isinstance(node, ast.Assign | ast.AnnAssign):

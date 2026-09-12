@@ -73,6 +73,7 @@ def test_js_reads_in_comments_are_not_claims(tmp_path):
 def test_tsconfig_paths_and_base_url_resolve(tmp_path):
     root = str(tmp_path / "repo")
     write(root, "package.json", json.dumps({"dependencies": {"react": "18"}}))
+    write(root, "package-lock.json", json.dumps({"packages": {"node_modules/react": {}}}))
     write(root, "tsconfig.base.json",
           '{\n  // comments and trailing commas are fine\n  "compilerOptions": {\n'
           '    "paths": { "@app/*": ["src/app/*"], "utils": ["src/utils/index.ts"], },\n  },\n}\n')
@@ -97,6 +98,7 @@ def test_tsconfig_paths_and_base_url_resolve(tmp_path):
 def test_bare_bundler_alias_matching_a_repo_dir_reviews(tmp_path):
     root = str(tmp_path / "repo")
     write(root, "package.json", json.dumps({"dependencies": {"react": "18"}}))
+    write(root, "package-lock.json", json.dumps({"packages": {"node_modules/react": {}}}))
     write(root, "src/components/x.ts", "")
     write(root, "lib/util.ts", "")
     res = _run(root, ImportsLockfileOracle(), "src/a.ts",
@@ -111,6 +113,7 @@ def test_bare_bundler_alias_matching_a_repo_dir_reviews(tmp_path):
 
 def test_packaging_declared_roots_are_local(tmp_path):
     root = str(tmp_path / "repo")
+    write(root, "uv.lock", '[[package]]\nname = "requests"\nversion = "2.32.3"\n')
     write(root, "pyproject.toml",
           '[project]\nname = "thing"\ndependencies = ["requests"]\n'
           '[tool.setuptools.package-dir]\n"" = "python"\n'
@@ -135,6 +138,7 @@ def test_setup_cfg_package_dir_root(tmp_path):
     root = str(tmp_path / "repo")
     cfg = "[options]\npackage_dir =\n    = source\ninstall_requires =\n    six\n"
     write(root, "setup.cfg", cfg)
+    write(root, "requirements.txt", "six==1.16.0\n")
     write(root, "source/core/__init__.py", "")
     res = _run(root, ImportsLockfileOracle(), "source/core/a.py", "import core\nimport six\n")
     assert res["core"].level is Level.ACCEPT and res["six"].level is Level.ACCEPT
@@ -156,3 +160,134 @@ def test_multi_target_check_cli_mcp_parity(tmp_path, capsys):
     via_mcp = mcp_server.call_tool("check_change", {"repo": root, "paths": ["a.py", "sub"]},
                                    store_path=store)
     assert via_cli == via_mcp
+
+
+# --- lockfile vs manifest -------------------------------------------------------------------------
+
+
+def test_manifest_only_absence_reviews_lockfile_absence_rejects(tmp_path):
+    root = str(tmp_path / "repo")
+    # pyproject only: direct dependencies, no resolved tree. Most declared names are
+    # deliberately not installed here, so the environment does not match the project.
+    write(root, "pyproject.toml", '[project]\ndependencies = ["fastapi", "requests", '
+                                  '"zz-notinstalled-one", "zz-notinstalled-two", '
+                                  '"zz-notinstalled-three", "zz-notinstalled-four"]\n')
+    res = _run(root, ImportsLockfileOracle(), "m.py", "import requestz\nimport zz_transitive\n")
+    soft = res["requestz"]
+    assert soft.level is Level.REVIEW and "did you mean requests" in soft.reason
+    assert soft.suggestions[0] == "requests"
+    trans = res["zz_transitive"]
+    assert trans.level is Level.REVIEW and "transitive" in trans.reason
+    # A lockfile enumerates the tree: absence is proven.
+    write(root, "uv.lock", '[[package]]\nname = "fastapi"\n[[package]]\nname = "requests"\n'
+                           '[[package]]\nname = "zz-transitive"\n')
+    res = _run(root, ImportsLockfileOracle(), "m.py", "import requestz\nimport zz_transitive\n")
+    assert res["requestz"].level is Level.REJECT and "uv.lock" in res["requestz"].reason
+    assert res["zz_transitive"].level is Level.ACCEPT
+    # Unpinned requirements are a manifest; fully pinned ones count as a lockfile.
+    root2 = str(tmp_path / "two")
+    write(root2, "requirements.txt", "fastapi\nrequests>=2\n")
+    assert _run(root2, ImportsLockfileOracle(), "m.py", "import ghost\n")["ghost"].level \
+        is Level.REVIEW
+    write(root2, "requirements.txt", "fastapi==0.115.0\nrequests==2.32.3\n")
+    assert _run(root2, ImportsLockfileOracle(), "m.py", "import ghost\n")["ghost"].level \
+        is Level.REJECT
+
+
+def test_manifest_only_rejects_when_the_environment_matches_the_project(tmp_path):
+    # These distributions are all installed in the test environment, so weft can tell
+    # the running interpreter *is* the project's: an import installed nowhere is proven.
+    root = str(tmp_path / "repo")
+    write(root, "pyproject.toml", '[project]\ndependencies = ["pytest", "ruff", "mypy", "build"]\n')
+    res = _run(root, ImportsLockfileOracle(), "m.py", "import pytest\nimport ghostpkg_zz\n")
+    assert res["pytest"].level is Level.ACCEPT
+    assert res["ghostpkg_zz"].level is Level.REJECT
+    assert "not installed in this environment" in res["ghostpkg_zz"].reason
+
+
+def test_node_manifest_only_and_framework_aliases(tmp_path):
+    root = str(tmp_path / "repo")
+    write(root, "package.json", json.dumps({"dependencies": {"@docusaurus/core": "3",
+                                                             "react": "18"}}))
+    res = _run(root, ImportsLockfileOracle(), "src/pages/index.js",
+               "import Layout from '@theme/Layout';\nimport x from '@site/src/x';\n"
+               "import Link from '@docusaurus/Link';\nimport g from 'ghost-pkg';\n"
+               "import s from '@scope/nope';\n")
+    assert res["@theme/Layout"].level is Level.ACCEPT and "alias" in res["@theme/Layout"].reason
+    assert res["@site/src/x"].level is Level.ACCEPT
+    assert res["@docusaurus/Link"].level is Level.ACCEPT
+    assert res["ghost-pkg"].level is Level.REVIEW and "transitive" in res["ghost-pkg"].reason
+    assert res["@scope/nope"].level is Level.REVIEW
+    write(root, "package-lock.json", json.dumps({"packages": {
+        "node_modules/@docusaurus/core": {}, "node_modules/react": {},
+        "node_modules/@scope/real": {}}}))
+    res = _run(root, ImportsLockfileOracle(), "src/pages/index.js",
+               "import g from 'ghost-pkg';\nimport s from '@scope/nope';\n")
+    assert res["ghost-pkg"].level is Level.REJECT
+    scoped = res["@scope/nope"]
+    assert scoped.level is Level.REVIEW and "@scope/* packages" in scoped.reason
+
+
+# --- nested project roots and parameter bindings (routes) -----------------------------------------
+
+
+def test_nested_project_root_resolves_cross_module_handlers(tmp_path):
+    from weft.oracles.routes_fastapi import RoutesFastAPIOracle
+
+    root = str(tmp_path / "repo")
+    write(root, "backend/pyproject.toml", '[project]\ndependencies = ["fastapi"]\n')
+    write(root, "backend/app/__init__.py", "")
+    write(root, "backend/app/api/__init__.py", "")
+    write(root, "backend/app/api/routes/__init__.py", "")
+    write(root, "backend/app/api/routes/login.py",
+          "from fastapi import APIRouter\nrouter = APIRouter()\n")
+    write(root, "backend/app/api/main.py",
+          "from fastapi import APIRouter\nfrom app.api.routes import login\n"
+          "from .routes import login as login2\n"
+          "api_router = APIRouter()\napi_router.include_router(login.router)\n"
+          "api_router.include_router(login2.router)\napi_router.include_router(login.nope)\n")
+    write(root, "backend/tests/__init__.py", "")
+    write(root, "backend/tests/utils.py", "")
+    ctx = _ctx(root, RoutesFastAPIOracle())
+    res = _run(root, RoutesFastAPIOracle(), "backend/app/api/main.py",
+               open(os.path.join(root, "backend/app/api/main.py")).read(), ctx=ctx)
+    assert res["login.router"].level is Level.ACCEPT, res["login.router"].reason
+    assert res["login2.router"].level is Level.ACCEPT, res["login2.router"].reason
+    assert res["login.nope"].level is Level.REJECT
+    # A route decorator on a fixture parameter is a binding, not a missing router.
+    res = _run(root, RoutesFastAPIOracle(), "backend/tests/test_x.py",
+               "from fastapi import FastAPI\n\n\nasync def test_it(app: FastAPI):\n"
+               "    @app.get('/x')\n    def route_for_test():\n        pass\n\n"
+               "    for rt in [app]:\n        @rt.get('/y')\n        def y():\n            pass\n",
+               ctx=ctx)
+    assert res["GET /x"].level is Level.ACCEPT and res["GET /y"].level is Level.ACCEPT
+    ctx.store.close()
+    # The nested root also makes `tests` a local import for the imports oracle.
+    write(root, "backend/uv.lock", '[[package]]\nname = "fastapi"\n')
+    res = _run(root, ImportsLockfileOracle(), "backend/tests/test_y.py",
+               "from tests.utils import helper\nfrom app.api.main import api_router\n"
+               "import fastapi\nimport ghostpkg\n")
+    assert res["tests.utils"].level is Level.ACCEPT and res["app.api.main"].level is Level.ACCEPT
+    assert res["fastapi"].level is Level.ACCEPT and res["ghostpkg"].level is Level.REJECT
+
+
+def test_harness_handles_multi_line_calls_and_node_candidates(tmp_path):
+    from weft.eval import mutate
+
+    root = str(tmp_path / "repo")
+    write(root, "requirements.txt", "fastapi==0.115.0\n")
+    write(root, "app/__init__.py", "")
+    write(root, "app/users.py", "from fastapi import APIRouter\nrouter = APIRouter()\n")
+    write(root, "app/main.py", "from fastapi import FastAPI\nfrom app.users import router\n"
+                               "app = FastAPI()\napp.include_router(\n    router,\n"
+                               "    prefix='/api',\n)\n")
+    write(root, "package.json", json.dumps({"dependencies": {"express": "4", "lodash": "4"}}))
+    write(root, "package-lock.json", json.dumps({"packages": {"node_modules/express": {},
+                                                              "node_modules/lodash": {}}}))
+    write(root, "server.js", "const express = require('express');\nconst _ = require('lodash');\n")
+    report = mutate.run(root, seed=5)
+    by_oracle = report.per_oracle
+    routes, imports = by_oracle["routes_fastapi"], by_oracle["imports_lockfile"]
+    assert routes["total"] == 1 and routes["misses"] == 0
+    assert imports["total"] >= 3 and imports["misses"] == 0
+    assert any(m["file"] == "server.js" for m in report.mutations)

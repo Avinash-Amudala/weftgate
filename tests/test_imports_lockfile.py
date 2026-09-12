@@ -28,7 +28,8 @@ def _check(root, code, name="m.py", ctx=None):
     return {f.claim.subject: f for f in (oracle.check(c, ctx) for c in oracle.extract(change, ctx))}
 
 
-def _repo(tmp_path, lock="requirements.txt", body="requests==2.32.0\nPyYAML>=6\nflask\n"):
+def _repo(tmp_path, lock="requirements.txt",
+          body="requests==2.32.0\nPyYAML==6.0.2\nflask==3.0.3\n"):
     root = str(tmp_path / "repo")
     os.makedirs(root, exist_ok=True)
     write(root, lock, body)
@@ -108,7 +109,7 @@ def test_installed_but_unlocked_reviews_and_locked_dist_resolves_import_name(tmp
 
 
 def test_substring_relation_reviews_not_rejects(tmp_path):
-    root = _repo(tmp_path, body="python-someproj==1.0\n")
+    root = _repo(tmp_path, body="python-someproj==1.0\n")  # pinned: lockfile-class
     res = _check(root, "import someproj\n")
     assert res["someproj"].level is Level.REVIEW and "python-someproj" in res["someproj"].reason
 
@@ -118,6 +119,9 @@ def test_node_imports(tmp_path):
     write(root, "package.json", json.dumps({
         "name": "site", "dependencies": {"lodash": "4", "@scope/pkg": "1", "react": "18"},
         "devDependencies": {"vitest": "1"}, "workspaces": ["packages/*"]}))
+    write(root, "package-lock.json", json.dumps({"name": "site", "packages": {
+        "node_modules/lodash": {}, "node_modules/@scope/pkg": {}, "node_modules/react": {},
+        "node_modules/vitest": {}}}))
     write(root, "packages/ui/package.json", json.dumps({"name": "@site/ui"}))
     write(root, "node_modules/leftpad/package.json", "{}")
     res = _check(
@@ -205,7 +209,7 @@ def test_sync_rebuilds_on_manifest_change(tmp_path):
     ctx = _ctx(root)
     oracle = ImportsLockfileOracle()
     assert _check(root, "import httpx\n", ctx=ctx)["httpx"].level is Level.REJECT
-    write(root, "requirements.txt", "requests==2.32.0\nhttpx\n")
+    write(root, "requirements.txt", "requests==2.32.0\nhttpx==0.27.0\n")
     oracle.sync(ctx, None)
     ctx.store.finish_sync(None)
     assert _check(root, "import httpx\n", ctx=ctx)["httpx"].level is Level.ACCEPT

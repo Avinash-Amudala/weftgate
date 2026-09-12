@@ -14,5 +14,5 @@ build>=1.2
 tree-sitter>=0.21
 tree-sitter-language-pack>=0.7
 python-lsp-server>=1.10
-PyYAML>=6.0
+PyYAML>=6.0.3
 mcp>=1.2

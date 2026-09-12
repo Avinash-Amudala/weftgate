@@ -24,7 +24,7 @@ dependencies = []
 # Optional accelerators. Each must degrade to UNVERIFIABLE when absent.
 treesitter = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.7"]
 lsp = ["python-lsp-server>=1.10"]
-yaml = ["PyYAML>=6.0"]
+yaml = ["PyYAML>=6.0.3"]
 mcp = ["mcp>=1.2"]
 all = ["weft[treesitter]", "weft[lsp]", "weft[yaml]", "weft[mcp]"]
 dev = [

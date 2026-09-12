@@ -1,0 +1,18 @@
+# Development environment for building weft.
+# Claude Code / any agent: `bash scripts/bootstrap.sh` installs the package
+# in editable mode with these plus all optional extras. This file exists so a
+# plain `pip install -r requirements-dev.txt` also works in a pinch.
+
+# test + quality
+pytest>=8.0
+pytest-cov>=5.0
+ruff>=0.6
+mypy>=1.11
+build>=1.2
+
+# optional accelerators used during development (mirror pyproject extras)
+tree-sitter>=0.21
+tree-sitter-language-pack>=0.7
+python-lsp-server>=1.10
+PyYAML>=6.0
+mcp>=1.2

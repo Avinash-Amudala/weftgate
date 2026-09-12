@@ -1,0 +1,47 @@
+"""Invariants that are easy to break silently: the core imports nothing outside
+the standard library, and the Python 3.10 backport of StrEnum behaves."""
+
+from __future__ import annotations
+
+import subprocess
+import sys
+import sysconfig
+
+CORE = ("types", "config", "registry", "oracle", "store", "gate", "change", "suggest",
+        "honesty", "cli", "mcp_server", "selftest", "setup", "oracles.env_vars",
+        "oracles.imports_lockfile", "oracles.routes_fastapi", "eval.audit", "eval.mutate")
+
+
+def test_core_modules_import_only_the_standard_library():
+    script = (
+        "import sys, importlib\n"
+        f"for m in {CORE!r}:\n"
+        "    importlib.import_module('weft.' + m)\n"
+        "print('\\n'.join(sorted(k for k, v in sys.modules.items()"
+        " if getattr(v, '__file__', None) and 'site-packages' in (v.__file__ or '')"
+        " and not k.startswith('weft'))))\n"
+    )
+    proc = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
+                          check=True)
+    third_party = [line for line in proc.stdout.splitlines() if line.strip()]
+    # Editable installs may expose a path hook; anything else is a real dependency.
+    third_party = [m for m in third_party if not m.startswith("_") and "editable" not in m]
+    assert third_party == [], f"core pulled in third-party modules: {third_party}"
+    assert sysconfig.get_paths()["purelib"]  # sanity: the check looked somewhere real
+
+
+def test_strenum_backport_matches_the_real_thing():
+    script = (
+        "import sys\n"
+        "sys.version_info = (3, 10, 0, 'final', 0)\n"
+        "import weft.types as t\n"
+        "assert t.StrEnum.__module__ == 'weft.types', t.StrEnum.__module__\n"
+        "assert str(t.Level.REJECT) == 'reject' and t.Level.REJECT == 'reject'\n"
+        "assert t.Level('review') is t.Level.REVIEW\n"
+        "assert t.worst([t.Level.REVIEW, t.Level.UNVERIFIABLE]) is t.Level.REVIEW\n"
+        "import json; assert json.dumps({'v': t.Level.ACCEPT}) == '{\"v\": \"accept\"}'\n"
+        "print('backport ok')\n"
+    )
+    proc = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    assert "backport ok" in proc.stdout

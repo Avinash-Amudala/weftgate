@@ -1,0 +1,116 @@
+"""weft setup and the Claude Code PreToolUse hook adapter."""
+
+import json
+import os
+
+from tests.conftest import git_init, have_git, write
+from weft import setup
+from weft.cli import main as cli_main
+from weft.eval.fixture import write_fixture
+
+
+def _repo(tmp_path):
+    root = str(tmp_path / "repo")
+    os.makedirs(root)
+    write_fixture(root)
+    os.remove(os.path.join(root, "weft.toml"))
+    return root
+
+
+def test_setup_writes_config_and_builds_index(tmp_path, capsys):
+    root = _repo(tmp_path)
+    assert setup.run(root, dry_run=True) == 0
+    out = capsys.readouterr().out
+    assert "would write" in out and not os.path.exists(os.path.join(root, "weft.toml"))
+    assert cli_main(["--repo", root, "--format", "json", "setup"]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["written"] == ["weft.toml"] and "fastapi" in summary["stack"]
+    assert summary["index"]["oracles"]["routes_fastapi"]["built"] is True
+    text = open(os.path.join(root, "weft.toml")).read()
+    assert 'app = "app.main:app"' in text and 'oracles = ["env_vars"' in text
+    # A second run keeps the existing config unless forced.
+    assert setup.run(root) == 0
+    assert "keep" in capsys.readouterr().out
+    write(root, "weft.toml", "[weft]\noracles = [\"env_vars\"]\n")
+    assert setup.run(root, force=True) == 0
+    assert "routes_fastapi" in open(os.path.join(root, "weft.toml")).read()
+
+
+def test_setup_hooks_merge_without_clobbering(tmp_path, capsys):
+    root = _repo(tmp_path)
+    if have_git():
+        git_init(root)
+    write(root, ".claude/settings.json", json.dumps({
+        "permissions": {"allow": ["Bash(ls)"]},
+        "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command",
+                                                                  "command": "echo hi"}]}]},
+    }))
+    write(root, ".mcp.json", json.dumps({"mcpServers": {"other": {"command": "x"}}}))
+    assert setup.run(root, hooks=True) == 0
+    settings = json.load(open(os.path.join(root, ".claude", "settings.json")))
+    assert settings["permissions"] == {"allow": ["Bash(ls)"]}
+    pre = settings["hooks"]["PreToolUse"]
+    assert pre[0]["matcher"] == "Bash" and pre[1]["matcher"] == "Edit|Write|MultiEdit"
+    assert pre[1]["hooks"][0]["command"] == "weft hook claude"
+    mcp = json.load(open(os.path.join(root, ".mcp.json")))
+    assert set(mcp["mcpServers"]) == {"other", "weft"}
+    if have_git():
+        hook = os.path.join(root, ".git", "hooks", "pre-commit")
+        assert os.access(hook, os.X_OK) and "weft check --staged" in open(hook).read()
+    # Idempotent: running again changes nothing.
+    assert setup.run(root, hooks=True) == 0
+    assert json.load(open(os.path.join(root, ".claude", "settings.json"))) == settings
+    capsys.readouterr()
+
+
+def test_claude_hook_blocks_only_on_reject(tmp_path, capsys):
+    root = str(tmp_path / "repo")
+    os.makedirs(root)
+    write_fixture(root)
+    store = str(tmp_path / "i.sqlite")
+    target = os.path.join(root, "app", "new.py")
+
+    def hook(payload):
+        return setup.claude_hook(root, json.dumps(payload), store_path=store)
+
+    bad_code = "import os\nx = os.environ['DATABSE_URL']\n"
+    bad = {"tool_name": "Write", "tool_input": {"file_path": target, "content": bad_code}}
+    assert hook(bad) == 2
+    err = capsys.readouterr().err
+    assert "weft blocked" in err and "did you mean DATABASE_URL" in err
+    good_code = "import os\nx = os.environ['API_KEY']\n"
+    good = {"tool_name": "Write", "tool_input": {"file_path": target, "content": good_code}}
+    assert hook(good) == 0 and capsys.readouterr().out == ""
+    soft = {"tool_name": "Write", "tool_input": {"file_path": target,
+                                                 "content": "import os\nx = os.environ[k]\n"}}
+    assert hook(soft) == 0
+    note = json.loads(capsys.readouterr().out)
+    assert "weft notes" in note["hookSpecificOutput"]["additionalContext"]
+    # Edit on an existing file reconstructs the new content.
+    write(root, "app/new.py", "import os\nx = os.environ['API_KEY']\n")
+    edit = {"tool_name": "Edit", "tool_input": {"file_path": target, "old_string": "API_KEY",
+                                                "new_string": "API_KEYY"}}
+    assert hook(edit) == 2
+    capsys.readouterr()
+    multi = {"tool_name": "MultiEdit", "tool_input": {"file_path": target, "edits": [
+        {"old_string": "API_KEY", "new_string": "REDIS_URL"}]}}
+    assert hook(multi) == 0
+    # Never block on garbage, unknown tools, or missing paths.
+    assert setup.claude_hook(root, "not json", store_path=store) == 0
+    assert hook({"tool_name": "Bash", "tool_input": {"command": "ls"}}) == 0
+    assert hook({"tool_name": "Write", "tool_input": {}}) == 0
+    capsys.readouterr()
+
+
+def test_reconstruct_content_shapes(tmp_path):
+    p = write(str(tmp_path), "f.py", "a = 1\nb = 2\n")
+    assert setup.reconstruct_content("Write", {"file_path": p, "content": "z"}) == "z"
+    assert setup.reconstruct_content("Edit", {"file_path": p, "old_string": "b = 2",
+                                              "new_string": "b = 3"}) == "a = 1\nb = 3\n"
+    assert setup.reconstruct_content("Edit", {"file_path": p + ".nope", "old_string": "",
+                                              "new_string": "new"}) == "new"
+    assert setup.reconstruct_content("MultiEdit", {"file_path": p, "edits": [
+        {"old_string": "1", "new_string": "9", "replace_all": True},
+        {"old_string": "", "new_string": "c = 3\n"}]}) == "a = 9\nb = 2\nc = 3\n"
+    assert setup.reconstruct_content("Bash", {"file_path": p}) is None
+    assert setup.reconstruct_content("Write", {"file_path": p}) is None

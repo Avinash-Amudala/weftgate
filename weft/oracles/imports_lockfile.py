@@ -41,15 +41,35 @@ from ..types import Claim, Finding, Location
 
 _PY_SUFFIXES = (".py", ".pyi")
 _JS_SUFFIXES = (".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".mts", ".cts", ".vue", ".svelte")
-_PY_MANIFESTS = ("poetry.lock", "uv.lock", "Pipfile.lock", "Pipfile", "pyproject.toml",
-                 "setup.cfg", "environment.yml", "environment.yaml")
-_NODE_MANIFESTS = ("package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock",
-                   "package.json")
+_PY_MANIFESTS = (
+    "poetry.lock",
+    "uv.lock",
+    "Pipfile.lock",
+    "Pipfile",
+    "pyproject.toml",
+    "setup.cfg",
+    "environment.yml",
+    "environment.yaml",
+)
+_NODE_MANIFESTS = (
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "package.json",
+)
 # Lockfiles enumerate the whole resolved tree, so a name absent from one is a proven
 # absence. Manifests list direct dependencies only; a transitive import (starlette via
 # fastapi) is legitimately absent from them.
-_LOCKFILES = ("poetry.lock", "uv.lock", "Pipfile.lock", "package-lock.json",
-              "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock")
+_LOCKFILES = (
+    "poetry.lock",
+    "uv.lock",
+    "Pipfile.lock",
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+)
 _PINNED = re.compile(r"^\s*[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]*\])?\s*==")
 # Import specs a framework resolves itself; keyed by the package whose presence enables them.
 _FRAMEWORK_ALIASES: dict[str, tuple[str, ...]] = {
@@ -73,47 +93,132 @@ _COMMENT = re.compile(r"^\s*(#|//|\*|/\*)")
 # Well-known cases where the import name differs from the distribution name.
 # import name -> normalised distribution names that provide it.
 _ALIASES: dict[str, tuple[str, ...]] = {
-    "yaml": ("pyyaml",), "sklearn": ("scikit_learn",), "PIL": ("pillow",),
-    "bs4": ("beautifulsoup4",), "dateutil": ("python_dateutil",), "psycopg2": ("psycopg2_binary",),
+    "yaml": ("pyyaml",),
+    "sklearn": ("scikit_learn",),
+    "PIL": ("pillow",),
+    "bs4": ("beautifulsoup4",),
+    "dateutil": ("python_dateutil",),
+    "psycopg2": ("psycopg2_binary",),
     "cv2": ("opencv_python", "opencv_python_headless", "opencv_contrib_python"),
-    "attr": ("attrs",), "attrs": ("attrs",), "msgpack": ("msgpack_python", "msgpack"),
-    "dotenv": ("python_dotenv",), "google": ("protobuf", "google_api_core", "google_auth",
-                                              "google_cloud_storage", "googleapis_common_protos"),
-    "jose": ("python_jose",), "jwt": ("pyjwt",), "rest_framework": ("djangorestframework",),
-    "pkg_resources": ("setuptools",), "multipart": ("python_multipart",), "faker": ("faker",),
-    "pymysql": ("pymysql",), "MySQLdb": ("mysqlclient",), "Crypto": ("pycryptodome",),
-    "Cryptodome": ("pycryptodomex",), "OpenSSL": ("pyopenssl",), "magic": ("python_magic",),
-    "ruamel": ("ruamel_yaml",), "zope": ("zope_interface",), "backports": ("backports_zoneinfo",),
-    "git": ("gitpython",), "github": ("pygithub",), "gi": ("pygobject",), "wx": ("wxpython",),
-    "serial": ("pyserial",), "usb": ("pyusb",), "docx": ("python_docx",), "pptx": ("python_pptx",),
-    "fitz": ("pymupdf",), "cairo": ("pycairo",), "Levenshtein": ("python_levenshtein",
-                                                                  "levenshtein"),
-    "slugify": ("python_slugify",), "markdown": ("markdown",), "nacl": ("pynacl",),
-    "snowflake": ("snowflake_connector_python",), "websocket": ("websocket_client",),
-    "socks": ("pysocks",), "ldap": ("python_ldap",), "memcache": ("python_memcached",),
-    "playhouse": ("peewee",), "flask_sqlalchemy": ("flask_sqlalchemy",),
-    "sqlalchemy": ("sqlalchemy",), "typing_extensions": ("typing_extensions",),
-    "importlib_metadata": ("importlib_metadata",), "tree_sitter": ("tree_sitter",),
-    "mcp": ("mcp",), "pydantic_settings": ("pydantic_settings",), "azure": ("azure_core",
-                                                                             "azure_identity",
-                                                                             "azure_storage_blob"),
-    "win32api": ("pywin32",), "win32con": ("pywin32",), "pythoncom": ("pywin32",),
-    "googleapiclient": ("google_api_python_client",), "google_auth_oauthlib": (
-        "google_auth_oauthlib",), "apiclient": ("google_api_python_client",),
-    "oauth2client": ("oauth2client",), "sendgrid": ("sendgrid",), "boto": ("boto",),
-    "botocore": ("botocore",), "aiohttp": ("aiohttp",), "jinja2": ("jinja2",),
-    "markupsafe": ("markupsafe",), "werkzeug": ("werkzeug",), "click": ("click",),
-    "Xlib": ("python_xlib",), "yattag": ("yattag",), "pkgutil_resolve_name": (
-        "pkgutil_resolve_name",),
+    "attr": ("attrs",),
+    "attrs": ("attrs",),
+    "msgpack": ("msgpack_python", "msgpack"),
+    "dotenv": ("python_dotenv",),
+    "google": (
+        "protobuf",
+        "google_api_core",
+        "google_auth",
+        "google_cloud_storage",
+        "googleapis_common_protos",
+    ),
+    "jose": ("python_jose",),
+    "jwt": ("pyjwt",),
+    "rest_framework": ("djangorestframework",),
+    "pkg_resources": ("setuptools",),
+    "multipart": ("python_multipart",),
+    "faker": ("faker",),
+    "pymysql": ("pymysql",),
+    "MySQLdb": ("mysqlclient",),
+    "Crypto": ("pycryptodome",),
+    "Cryptodome": ("pycryptodomex",),
+    "OpenSSL": ("pyopenssl",),
+    "magic": ("python_magic",),
+    "ruamel": ("ruamel_yaml",),
+    "zope": ("zope_interface",),
+    "backports": ("backports_zoneinfo",),
+    "git": ("gitpython",),
+    "github": ("pygithub",),
+    "gi": ("pygobject",),
+    "wx": ("wxpython",),
+    "serial": ("pyserial",),
+    "usb": ("pyusb",),
+    "docx": ("python_docx",),
+    "pptx": ("python_pptx",),
+    "fitz": ("pymupdf",),
+    "cairo": ("pycairo",),
+    "Levenshtein": ("python_levenshtein", "levenshtein"),
+    "slugify": ("python_slugify",),
+    "markdown": ("markdown",),
+    "nacl": ("pynacl",),
+    "snowflake": ("snowflake_connector_python",),
+    "websocket": ("websocket_client",),
+    "socks": ("pysocks",),
+    "ldap": ("python_ldap",),
+    "memcache": ("python_memcached",),
+    "playhouse": ("peewee",),
+    "flask_sqlalchemy": ("flask_sqlalchemy",),
+    "sqlalchemy": ("sqlalchemy",),
+    "typing_extensions": ("typing_extensions",),
+    "importlib_metadata": ("importlib_metadata",),
+    "tree_sitter": ("tree_sitter",),
+    "mcp": ("mcp",),
+    "pydantic_settings": ("pydantic_settings",),
+    "azure": ("azure_core", "azure_identity", "azure_storage_blob"),
+    "win32api": ("pywin32",),
+    "win32con": ("pywin32",),
+    "pythoncom": ("pywin32",),
+    "googleapiclient": ("google_api_python_client",),
+    "google_auth_oauthlib": ("google_auth_oauthlib",),
+    "apiclient": ("google_api_python_client",),
+    "oauth2client": ("oauth2client",),
+    "sendgrid": ("sendgrid",),
+    "boto": ("boto",),
+    "botocore": ("botocore",),
+    "aiohttp": ("aiohttp",),
+    "jinja2": ("jinja2",),
+    "markupsafe": ("markupsafe",),
+    "werkzeug": ("werkzeug",),
+    "click": ("click",),
+    "Xlib": ("python_xlib",),
+    "yattag": ("yattag",),
+    "pkgutil_resolve_name": ("pkgutil_resolve_name",),
 }
 
 _NODE_BUILTINS = frozenset(
     {
-        "assert", "async_hooks", "buffer", "child_process", "cluster", "console", "constants",
-        "crypto", "dgram", "diagnostics_channel", "dns", "domain", "events", "fs", "http", "http2",
-        "https", "inspector", "module", "net", "os", "path", "perf_hooks", "process", "punycode",
-        "querystring", "readline", "repl", "stream", "string_decoder", "sys", "timers", "tls",
-        "trace_events", "tty", "url", "util", "v8", "vm", "wasi", "worker_threads", "zlib", "test",
+        "assert",
+        "async_hooks",
+        "buffer",
+        "child_process",
+        "cluster",
+        "console",
+        "constants",
+        "crypto",
+        "dgram",
+        "diagnostics_channel",
+        "dns",
+        "domain",
+        "events",
+        "fs",
+        "http",
+        "http2",
+        "https",
+        "inspector",
+        "module",
+        "net",
+        "os",
+        "path",
+        "perf_hooks",
+        "process",
+        "punycode",
+        "querystring",
+        "readline",
+        "repl",
+        "stream",
+        "string_decoder",
+        "sys",
+        "timers",
+        "tls",
+        "trace_events",
+        "tty",
+        "url",
+        "util",
+        "v8",
+        "vm",
+        "wasi",
+        "worker_threads",
+        "zlib",
+        "test",
         "sqlite",
     }
 )
@@ -168,8 +273,10 @@ class ImportsLockfileOracle(BaseOracle):
     kinds: tuple[str, ...] = ("import",)
     version = "4"
 
-    _PROVIDED = ("lang TEXT NOT NULL, name TEXT NOT NULL, dist TEXT NOT NULL, "
-                 "source TEXT NOT NULL, core INTEGER NOT NULL")
+    _PROVIDED = (
+        "lang TEXT NOT NULL, name TEXT NOT NULL, dist TEXT NOT NULL, "
+        "source TEXT NOT NULL, core INTEGER NOT NULL"
+    )
     # kind: "root" (importable from a source root), "nested" (a package dir deeper in the
     # tree, importable only with sys.path help), "alias" (tsconfig paths / baseUrl / dir)
     _LOCAL = "lang TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, source TEXT NOT NULL"
@@ -201,8 +308,10 @@ class ImportsLockfileOracle(BaseOracle):
             dists, own = _parse_manifest(base, text, ctx, rel)
             core = _core_dists(base, text) if lang == "python" else set()
             sources.append((lang, rel, _source_kind(base, text)))
-            provided.extend((lang, norm(d) if lang == "python" else d, d, rel,
-                             1 if d in core else 0) for d in dists)
+            provided.extend(
+                (lang, norm(d) if lang == "python" else d, d, rel, 1 if d in core else 0)
+                for d in dists
+            )
             local.extend((lang, o, "root", rel) for o in own)
             if lang == "python":
                 # Every Python manifest marks a project root (a monorepo's backend/, an
@@ -239,8 +348,9 @@ class ImportsLockfileOracle(BaseOracle):
         ns = ctx.store.namespace(self.name)
         if not ns.exists("provided") or not ns.exists("sources"):
             return None
-        rows = ns.query("SELECT source, kind FROM {t:sources} WHERE lang=? ORDER BY source",
-                        (lang,))
+        rows = ns.query(
+            "SELECT source, kind FROM {t:sources} WHERE lang=? ORDER BY source", (lang,)
+        )
         sources = [str(r[0]) for r in rows]
         lockfiles = [str(r[0]) for r in rows if str(r[1]) == "lockfile"]
         provided: dict[str, list[tuple[str, str]]] = {}
@@ -321,8 +431,10 @@ class ImportsLockfileOracle(BaseOracle):
         for dist in env_dists:
             hit = index.provided.get(norm(dist))
             if hit:
-                return self.accept(claim, f"in {hit[0][1]} as {hit[0][0]} (installed metadata "
-                                          f"says it provides {top})")
+                return self.accept(
+                    claim,
+                    f"in {hit[0][1]} as {hit[0][0]} (installed metadata says it provides {top})",
+                )
         if env_dists:
             return self.review(
                 claim,
@@ -332,17 +444,24 @@ class ImportsLockfileOracle(BaseOracle):
         related = sorted(d for d in index.dist_names() if _probably_provides(d, top))
         if related:
             return self.review(
-                claim, f"import {top!r} is not in the lockfile by that name; it may be provided "
-                       f"by {', '.join(related[:3])}", related[:3])
+                claim,
+                f"import {top!r} is not in the lockfile by that name; it may be provided "
+                f"by {', '.join(related[:3])}",
+                related[:3],
+            )
         if optional:
             return self.review(
-                claim, f"optional import {top!r} (guarded by try/except) is not in the lockfile",
-                did_you_mean(top, index.dist_names() | index.local))
+                claim,
+                f"optional import {top!r} (guarded by try/except) is not in the lockfile",
+                did_you_mean(top, index.dist_names() | index.local),
+            )
         if top in index.nested:
             return self.review(
-                claim, f"import {top!r} matches a package directory deeper in the repo; it is "
-                       f"importable only if that directory is on sys.path (declare the source "
-                       f"root in pyproject.toml to make this exact)")
+                claim,
+                f"import {top!r} matches a package directory deeper in the repo; it is "
+                f"importable only if that directory is on sys.path (declare the source "
+                f"root in pyproject.toml to make this exact)",
+            )
         sugg = did_you_mean(top, index.dist_names() | index.local)
         coverage = index.env_coverage(claim.location.file)
         if not index.has_lockfile and coverage < 0.6:
@@ -350,13 +469,18 @@ class ImportsLockfileOracle(BaseOracle):
             # environment that demonstrably matches the project, absence is not proven.
             hint = f"; did you mean {sugg[0]}?" if sugg else ""
             return self.review(
-                claim, f"import {top!r} is not a declared dependency in "
-                       f"{', '.join(index.sources)}; it may be transitive (add a lockfile "
-                       f"such as uv.lock or poetry.lock to make this exact){hint}", sugg)
+                claim,
+                f"import {top!r} is not a declared dependency in "
+                f"{', '.join(index.sources)}; it may be transitive (add a lockfile "
+                f"such as uv.lock or poetry.lock to make this exact){hint}",
+                sugg,
+            )
         where = ", ".join(index.lockfiles or index.sources)
         if not index.has_lockfile:
-            where += (f" and not installed in this environment (which has "
-                      f"{coverage:.0%} of the project's required packages)")
+            where += (
+                f" and not installed in this environment (which has "
+                f"{coverage:.0%} of the project's required packages)"
+            )
         reason = f"import {top!r} is not in {where} or the standard library (slopsquat risk)"
         return self.reject(claim, reason, sugg)
 
@@ -381,27 +505,40 @@ class ImportsLockfileOracle(BaseOracle):
             return self.accept(claim, "resolved via tsconfig baseUrl")
         if top.split("/")[0] in index.dirs and not top.startswith("@"):
             return self.review(
-                claim, f"{spec!r} matches a directory in the repo; probably a bundler path alias "
-                       f"weft could not confirm (declare it in tsconfig paths to make it exact)")
+                claim,
+                f"{spec!r} matches a directory in the repo; probably a bundler path alias "
+                f"weft could not confirm (declare it in tsconfig paths to make it exact)",
+            )
         if os.path.isfile(os.path.join(ctx.repo_root, "node_modules", top, "package.json")):
             return self.review(
-                claim, f"package {top!r} is in node_modules but not in any lockfile or "
-                       f"package.json; add it so it works off this machine")
+                claim,
+                f"package {top!r} is in node_modules but not in any lockfile or "
+                f"package.json; add it so it works off this machine",
+            )
         if optional:
-            return self.review(claim, f"optional import {top!r} is not in the lockfile",
-                               did_you_mean(top, index.dist_names() | index.local))
+            return self.review(
+                claim,
+                f"optional import {top!r} is not in the lockfile",
+                did_you_mean(top, index.dist_names() | index.local),
+            )
         sugg = did_you_mean(top, index.dist_names() | index.local)
         scope = top.split("/")[0] if top.startswith("@") and "/" in top else ""
         if scope and any(d.startswith(scope + "/") for d in index.dist_names()):
             return self.review(
-                claim, f"package {top!r} is not in the lockfile, but other {scope}/* packages "
-                       f"are; probably a framework-resolved sub-path rather than a phantom", sugg)
+                claim,
+                f"package {top!r} is not in the lockfile, but other {scope}/* packages "
+                f"are; probably a framework-resolved sub-path rather than a phantom",
+                sugg,
+            )
         if not index.has_lockfile:
             hint = f"; did you mean {sugg[0]}?" if sugg else ""
             return self.review(
-                claim, f"package {top!r} is not a declared dependency in "
-                       f"{', '.join(index.sources)}; it may be transitive (commit a lockfile "
-                       f"to make this exact){hint}", sugg)
+                claim,
+                f"package {top!r} is not a declared dependency in "
+                f"{', '.join(index.sources)}; it may be transitive (commit a lockfile "
+                f"to make this exact){hint}",
+                sugg,
+            )
         where = ", ".join(index.lockfiles)
         reason = f"package {top!r} is not in {where} (slopsquat risk)"
         return self.reject(claim, reason, sugg)
@@ -498,18 +635,34 @@ def _extract_python(region: Region) -> list[Claim]:
                 if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
                     names = [(arg.value, node.lineno, node.col_offset)]
                 elif arg is not None:
-                    claims.append(Claim("import", "<dynamic>", Location(
-                        region.file, line_map.get(node.lineno, node.lineno),
-                        node.col_offset + 1), {"lang": "python"}, hard=False))
+                    claims.append(
+                        Claim(
+                            "import",
+                            "<dynamic>",
+                            Location(
+                                region.file,
+                                line_map.get(node.lineno, node.lineno),
+                                node.col_offset + 1,
+                            ),
+                            {"lang": "python"},
+                            hard=False,
+                        )
+                    )
                     continue
         for mod, lineno, col in names:
             if region.whole_file or lineno in line_map:
-                claims.append(Claim(
-                    "import", mod,
-                    Location(region.file, line_map.get(lineno, lineno), col + 1),
-                    {"lang": "python", "top": mod.split(".")[0],
-                     **({"optional": True} if lineno in optional_lines else {})},
-                ))
+                claims.append(
+                    Claim(
+                        "import",
+                        mod,
+                        Location(region.file, line_map.get(lineno, lineno), col + 1),
+                        {
+                            "lang": "python",
+                            "top": mod.split(".")[0],
+                            **({"optional": True} if lineno in optional_lines else {}),
+                        },
+                    )
+                )
     return _dedupe(claims)
 
 
@@ -525,8 +678,11 @@ def _optional_import_lines(tree: ast.AST) -> set[int]:
                 guarded = True
             else:
                 names = [h.type] if not isinstance(h.type, ast.Tuple) else list(h.type.elts)
-                if any((_dotted(n) or "").split(".")[-1] in ("ImportError", "ModuleNotFoundError",
-                                                              "Exception") for n in names):
+                if any(
+                    (_dotted(n) or "").split(".")[-1]
+                    in ("ImportError", "ModuleNotFoundError", "Exception")
+                    for n in names
+                ):
                     guarded = True
         if not guarded:
             continue
@@ -549,15 +705,31 @@ def _extract_python_regex(region: Region) -> list[Claim]:
                 mods = [m.group(2)]
             for mod in mods:
                 if mod and not mod.startswith("."):
-                    claims.append(Claim("import", mod, Location(region.file, lineno, 1),
-                                        {"lang": "python", "top": mod.split(".")[0]}))
+                    claims.append(
+                        Claim(
+                            "import",
+                            mod,
+                            Location(region.file, lineno, 1),
+                            {"lang": "python", "top": mod.split(".")[0]},
+                        )
+                    )
         for lm in _PY_LITERAL_DYNAMIC.finditer(text):
             loc = Location(region.file, lineno, lm.start() + 1)
-            claims.append(Claim("import", lm.group(1), loc,
-                                {"lang": "python", "top": lm.group(1).split(".")[0]}))
+            claims.append(
+                Claim(
+                    "import", lm.group(1), loc, {"lang": "python", "top": lm.group(1).split(".")[0]}
+                )
+            )
         if _PY_DYNAMIC.search(text):
-            claims.append(Claim("import", "<dynamic>", Location(region.file, lineno, 1),
-                                {"lang": "python"}, hard=False))
+            claims.append(
+                Claim(
+                    "import",
+                    "<dynamic>",
+                    Location(region.file, lineno, 1),
+                    {"lang": "python"},
+                    hard=False,
+                )
+            )
     return _dedupe(claims)
 
 
@@ -577,11 +749,24 @@ def _extract_js(region: Region) -> list[Claim]:
             if spec.startswith(_LOCAL_PREFIXES) or (":" in spec and not spec.startswith("node:")):
                 continue
             top = _top_level(spec, "node")
-            claims.append(Claim("import", spec, Location(region.file, lineno, col + 1),
-                                {"lang": "node", "top": top}))
+            claims.append(
+                Claim(
+                    "import",
+                    spec,
+                    Location(region.file, lineno, col + 1),
+                    {"lang": "node", "top": top},
+                )
+            )
         if not specs and _JS_DYNAMIC.search(text):
-            claims.append(Claim("import", "<dynamic>", Location(region.file, lineno, 1),
-                                {"lang": "node"}, hard=False))
+            claims.append(
+                Claim(
+                    "import",
+                    "<dynamic>",
+                    Location(region.file, lineno, 1),
+                    {"lang": "node"},
+                    hard=False,
+                )
+            )
     return _dedupe(claims)
 
 
@@ -667,8 +852,11 @@ def _core_dists(base: str, text: str) -> set[str]:
                 cp = configparser.ConfigParser()
                 cp.read_string(text)
                 if cp.has_option("options", "install_requires"):
-                    return {n for ln in cp.get("options", "install_requires").splitlines()
-                            if (n := _req_name(ln))}
+                    return {
+                        n
+                        for ln in cp.get("options", "install_requires").splitlines()
+                        if (n := _req_name(ln))
+                    }
                 return set()
             case "Pipfile":
                 return set(load_toml(text).get("packages", {}) or {})
@@ -686,8 +874,9 @@ def _source_kind(base: str, text: str) -> str:
     if base in _LOCKFILES:
         return "lockfile"
     if base.startswith("requirements") and base.endswith(".txt"):
-        lines = [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith(
-            ("#", "-"))]
+        lines = [
+            ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith(("#", "-"))
+        ]
         if lines and all(_PINNED.match(ln) for ln in lines):
             return "lockfile"
     return "manifest"
@@ -718,9 +907,11 @@ def _parse_manifest(base: str, text: str, ctx: Context, rel: str) -> tuple[set[s
             case "setup.cfg":
                 return _parse_setup_cfg(text), set()
             case "environment.yml" | "environment.yaml":
-                return {m.group(1) for line in text.splitlines()
-                        if (m := _CONDA_DEP.match(line)) and m.group(1) not in ("pip", "python")
-                        }, set()
+                return {
+                    m.group(1)
+                    for line in text.splitlines()
+                    if (m := _CONDA_DEP.match(line)) and m.group(1) not in ("pip", "python")
+                }, set()
             case "package-lock.json" | "npm-shrinkwrap.json":
                 return _parse_package_lock(json.loads(text))
             case "pnpm-lock.yaml":
@@ -856,10 +1047,29 @@ def _parse_pnpm(text: str) -> set[str]:
         m = _PNPM_DEP.match(line)
         if m and (m.group(1).startswith("@") or "/" not in m.group(1)):
             out.add(m.group(1))
-    for junk in ("dependencies", "devDependencies", "optionalDependencies", "packages",
-                 "snapshots", "importers", "specifiers", "resolution", "engines", "cpu", "os",
-                 "peerDependencies", "peerDependenciesMeta", "transitivePeerDependencies",
-                 "optional", "dev", "hasBin", "requiresBuild", "bin", "deprecated", "libc"):
+    for junk in (
+        "dependencies",
+        "devDependencies",
+        "optionalDependencies",
+        "packages",
+        "snapshots",
+        "importers",
+        "specifiers",
+        "resolution",
+        "engines",
+        "cpu",
+        "os",
+        "peerDependencies",
+        "peerDependenciesMeta",
+        "transitivePeerDependencies",
+        "optional",
+        "dev",
+        "hasBin",
+        "requiresBuild",
+        "bin",
+        "deprecated",
+        "libc",
+    ):
         out.discard(junk)
     return out
 
@@ -918,7 +1128,7 @@ def _local_python_names(files: Iterable[str], roots: Iterable[str]) -> set[str]:
             prefix = f"{root}/" if root else ""
             if root and not rel.startswith(prefix):
                 continue
-            body = rel[len(prefix):].split("/")
+            body = rel[len(prefix) :].split("/")
             if not body or not body[0]:
                 continue
             head = body[0][:-3] if len(body) == 1 else body[0]
@@ -971,8 +1181,7 @@ def _python_roots(base: str, text: str) -> set[str]:
                     if "=" in line:
                         roots.add(line.split("=", 1)[1].strip())
             if cp.has_option("options.packages.find", "where"):
-                roots.update(w.strip() for w in cp.get("options.packages.find",
-                                                        "where").split(","))
+                roots.update(w.strip() for w in cp.get("options.packages.find", "where").split(","))
             return {r.strip("./") for r in roots if r.strip("./") != "."}
         data = load_toml(text)
     except (ValueError, TypeError, configparser.Error):
@@ -996,8 +1205,11 @@ def _python_roots(base: str, text: str) -> set[str]:
     for pkg in wheel.get("packages", []) or []:
         if isinstance(pkg, str) and "/" in pkg:
             roots.add(pkg.rsplit("/", 1)[0])
-    pytest_opts = tool.get("pytest", {}).get("ini_options", {}) if isinstance(
-        tool.get("pytest"), dict) else {}
+    pytest_opts = (
+        tool.get("pytest", {}).get("ini_options", {})
+        if isinstance(tool.get("pytest"), dict)
+        else {}
+    )
     pp = pytest_opts.get("pythonpath", []) if isinstance(pytest_opts, dict) else []
     for entry in ([pp] if isinstance(pp, str) else pp) or []:
         if isinstance(entry, str):
@@ -1032,7 +1244,7 @@ def _tsconfig_aliases(text: str, ctx: Context, rel: str, depth: int = 0) -> set[
         if parent_text is not None:
             out |= _tsconfig_aliases(parent_text, ctx, parent, depth + 1)
     opts = data.get("compilerOptions", {}) if isinstance(data.get("compilerOptions"), dict) else {}
-    for pattern in (opts.get("paths", {}) or {}):
+    for pattern in opts.get("paths", {}) or {}:
         if isinstance(pattern, str):
             out.add(pattern)
     base = opts.get("baseUrl")
@@ -1061,13 +1273,24 @@ def _base_url_hit(spec: str, aliases: set[str], ctx: Context) -> bool:
     for pattern in aliases:
         if not pattern.startswith("baseUrl:"):
             continue
-        base = pattern[len("baseUrl:"):]
+        base = pattern[len("baseUrl:") :]
         head = spec.split("/")[0]
         candidate = os.path.join(ctx.repo_root, "" if base == "." else base, head)
         if os.path.isdir(candidate):
             return True
-        for ext in (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts", ".vue",
-                    ".svelte", ".json"):
+        for ext in (
+            ".ts",
+            ".tsx",
+            ".js",
+            ".jsx",
+            ".mjs",
+            ".cjs",
+            ".mts",
+            ".cts",
+            ".vue",
+            ".svelte",
+            ".json",
+        ):
             if os.path.isfile(candidate + ext):
                 return True
     return False

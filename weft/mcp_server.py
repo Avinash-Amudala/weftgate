@@ -39,12 +39,19 @@ TOOLS: list[dict[str, Any]] = [
             "type": "object",
             "properties": {
                 "repo": _REPO_PROP,
-                "path": {"type": "string",
-                         "description": "file to check (repo-relative or absolute)"},
-                "paths": {"type": "array", "items": {"type": "string"},
-                          "description": "several files or directories to check together"},
-                "content": {"type": "string",
-                            "description": "new content of `path` (not yet written)"},
+                "path": {
+                    "type": "string",
+                    "description": "file to check (repo-relative or absolute)",
+                },
+                "paths": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "several files or directories to check together",
+                },
+                "content": {
+                    "type": "string",
+                    "description": "new content of `path` (not yet written)",
+                },
                 "diff": {"type": "string", "description": "a unified diff to check"},
                 "staged": {"type": "boolean", "description": "check the staged git diff"},
             },
@@ -62,8 +69,10 @@ TOOLS: list[dict[str, Any]] = [
             "properties": {
                 "repo": _REPO_PROP,
                 "claims": {"type": "array", "items": {"type": "object"}},
-                "run": {"type": "boolean",
-                        "description": "allow re-running named test commands / local probes"},
+                "run": {
+                    "type": "boolean",
+                    "description": "allow re-running named test commands / local probes",
+                },
             },
             "required": ["claims"],
         },
@@ -147,14 +156,16 @@ def call_tool(
             if not kind or not subject:
                 raise ToolError("suggest needs 'kind' and 'subject'")
             with gate.Session(repo, store_path=store_path) as s:
-                return {"kind": kind, "subject": subject,
-                        "suggestions": s.suggest(str(kind), str(subject))}
+                return {
+                    "kind": kind,
+                    "subject": subject,
+                    "suggestions": s.suggest(str(kind), str(subject)),
+                }
         case "index_status":
             with gate.Session(repo, store_path=store_path) as s:
                 return s.status()
         case "index":
-            return gate.index(repo, rebuild=bool(args.get("rebuild", False)),
-                              store_path=store_path)
+            return gate.index(repo, rebuild=bool(args.get("rebuild", False)), store_path=store_path)
         case _:
             raise ToolError(f"unknown tool {name!r}")
 
@@ -186,8 +197,9 @@ def _change_from_args(args: dict[str, Any], repo: str) -> Change:
                 raise ToolError(f"no such file: {target}")
             changes.append(Change.from_path_or_diff(full, None, repo))
         return Change.combine(changes)
-    raise ToolError("check_change needs one of 'path', 'paths', 'content'+'path', 'diff', "
-                    "or 'staged'")
+    raise ToolError(
+        "check_change needs one of 'path', 'paths', 'content'+'path', 'diff', or 'staged'"
+    )
 
 
 # --- JSON-RPC plumbing -----------------------------------------------------------------------
@@ -270,8 +282,13 @@ def serve(
             _write(out, _error(None, -32700, "parse error"))
             continue
         if isinstance(msg, list):  # batch
-            responses = [r for r in (handle_message(m, default_repo, store_path) for m in msg
-                                     if isinstance(m, dict)) if r is not None]
+            responses = [
+                r
+                for r in (
+                    handle_message(m, default_repo, store_path) for m in msg if isinstance(m, dict)
+                )
+                if r is not None
+            ]
             if responses:
                 _write(out, responses)
             continue

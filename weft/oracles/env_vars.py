@@ -74,8 +74,15 @@ _COMMENT = re.compile(r"^\s*(#|//|\*|/\*|--)")
 
 # Files whose contents declare env var names, matched by basename anywhere.
 _DOTENV_NAMES = (
-    ".env.example", ".env.sample", ".env.template", ".env.defaults", ".env.dist",
-    ".env.example.local", ".env.local.example", "env.example", "example.env",
+    ".env.example",
+    ".env.sample",
+    ".env.template",
+    ".env.defaults",
+    ".env.dist",
+    ".env.example.local",
+    ".env.local.example",
+    "env.example",
+    "example.env",
 )
 _DOTENV_LINE = re.compile(rf"^\s*(?:export\s+)?{_NAME}\s*[=:]")
 _COMPOSE_NAME = re.compile(r"^(docker-)?compose(\..+)?\.ya?ml$")
@@ -92,19 +99,81 @@ _CODE_SUFFIXES = (".py", ".rb", *_CLIKE_SUFFIXES)
 # Variables the OS, the runtime, or CI provide. Reading one is never a broken wire.
 _AMBIENT = frozenset(
     {
-        "PATH", "HOME", "USER", "LOGNAME", "SHELL", "PWD", "OLDPWD", "TMPDIR", "TMP", "TEMP",
-        "LANG", "LC_ALL", "LC_CTYPE", "TZ", "TERM", "HOSTNAME", "USERPROFILE", "APPDATA",
-        "LOCALAPPDATA", "SYSTEMROOT", "COMSPEC", "OS", "PROGRAMFILES", "PROGRAMDATA",
-        "NODE_ENV", "NODE_OPTIONS", "PYTHONPATH", "PYTHONUNBUFFERED", "PYTHONDONTWRITEBYTECODE",
-        "VIRTUAL_ENV", "CONDA_PREFIX", "RUST_LOG", "RUST_BACKTRACE", "GOPATH", "GOROOT",
-        "JAVA_HOME", "CI", "GITLAB_CI", "CI_COMMIT_SHA", "BUILDKITE", "CIRCLECI", "TRAVIS",
-        "JENKINS_URL", "PORT", "DEBUG", "MODE", "DEV", "PROD", "SSR", "BASE_URL",
-        "npm_package_version", "npm_package_name", "npm_lifecycle_event",
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "PWD",
+        "OLDPWD",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TZ",
+        "TERM",
+        "HOSTNAME",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "SYSTEMROOT",
+        "COMSPEC",
+        "OS",
+        "PROGRAMFILES",
+        "PROGRAMDATA",
+        "NODE_ENV",
+        "NODE_OPTIONS",
+        "PYTHONPATH",
+        "PYTHONUNBUFFERED",
+        "PYTHONDONTWRITEBYTECODE",
+        "VIRTUAL_ENV",
+        "CONDA_PREFIX",
+        "RUST_LOG",
+        "RUST_BACKTRACE",
+        "GOPATH",
+        "GOROOT",
+        "JAVA_HOME",
+        "CI",
+        "GITLAB_CI",
+        "CI_COMMIT_SHA",
+        "BUILDKITE",
+        "CIRCLECI",
+        "TRAVIS",
+        "JENKINS_URL",
+        "PORT",
+        "DEBUG",
+        "MODE",
+        "DEV",
+        "PROD",
+        "SSR",
+        "BASE_URL",
+        "npm_package_version",
+        "npm_package_name",
+        "npm_lifecycle_event",
     }
 )
-_AMBIENT_PREFIXES = ("XDG_", "GITHUB_", "RUNNER_", "VERCEL_", "RAILWAY_", "RENDER_", "FLY_",
-                     "HEROKU_", "AWS_LAMBDA_", "AWS_REGION", "AWS_DEFAULT_REGION", "KUBERNETES_",
-                     "DYNO", "WEBSITE_", "FUNCTIONS_", "CF_PAGES", "NETLIFY", "CODESPACE")
+_AMBIENT_PREFIXES = (
+    "XDG_",
+    "GITHUB_",
+    "RUNNER_",
+    "VERCEL_",
+    "RAILWAY_",
+    "RENDER_",
+    "FLY_",
+    "HEROKU_",
+    "AWS_LAMBDA_",
+    "AWS_REGION",
+    "AWS_DEFAULT_REGION",
+    "KUBERNETES_",
+    "DYNO",
+    "WEBSITE_",
+    "FUNCTIONS_",
+    "CF_PAGES",
+    "NETLIFY",
+    "CODESPACE",
+)
 
 
 def _is_ambient(name: str, extra: Iterable[str]) -> bool:
@@ -168,8 +237,9 @@ class EnvVarOracle(BaseOracle):
         base = os.path.basename(rel)
         configured = rel in set(self._configured_files(ctx))
         names: list[tuple[str, str]] = []
-        if base in _DOTENV_NAMES or (configured and not rel.endswith(_CODE_SUFFIXES)
-                                     and not _COMPOSE_NAME.match(base)):
+        if base in _DOTENV_NAMES or (
+            configured and not rel.endswith(_CODE_SUFFIXES) and not _COMPOSE_NAME.match(base)
+        ):
             names += [(n, "dotenv") for n in _scan_dotenv(text)]
         elif _COMPOSE_NAME.match(base):
             names += [(n, "compose") for n in _scan_compose(text)]
@@ -180,8 +250,11 @@ class EnvVarOracle(BaseOracle):
         elif rel.endswith(_JS_SUFFIXES):
             names += [(n, "code_default") for n in _scan_js(text)]
             if configured:
-                names += [(c.subject, "configured") for c in self._extract_region_text(rel, text)
-                          if c.hard]
+                names += [
+                    (c.subject, "configured")
+                    for c in self._extract_region_text(rel, text)
+                    if c.hard
+                ]
         return [(rel, n, s) for n, s in names]
 
     def _declared(self, ctx: Context) -> dict[str, list[str]] | None:
@@ -215,8 +288,10 @@ class EnvVarOracle(BaseOracle):
         if region.whole_file and region.file.endswith(_CLIKE_SUFFIXES + (".rb",)):
             style = "hash" if region.file.endswith(".rb") else "clike"
             masked = mask_comments(region.text(), style).split("\n")
-            lines = [(ln, masked[ln - 1] if ln - 1 < len(masked) else text)
-                     for ln, text in region.lines()]
+            lines = [
+                (ln, masked[ln - 1] if ln - 1 < len(masked) else text)
+                for ln, text in region.lines()
+            ]
             return self._extract_lines(region.file, lines)
         return self._extract_lines(region.file, region.lines())
 
@@ -374,8 +449,10 @@ def _extract_python_ast(region: Region) -> list[Claim] | None:
                 isinstance(node.args[1], ast.Constant) and node.args[1].value is None
             )
             default = default or any(
-                k.arg == "default" and not (isinstance(k.value, ast.Constant)
-                                            and k.value.value is None) for k in node.keywords)
+                k.arg == "default"
+                and not (isinstance(k.value, ast.Constant) and k.value.value is None)
+                for k in node.keywords
+            )
             found.append((node.lineno, node.col_offset, name or "", default, name is None))
     claims: list[Claim] = []
     seen: set[tuple[int, str]] = set()
@@ -385,11 +462,18 @@ def _extract_python_ast(region: Region) -> list[Claim] | None:
             continue
         seen.add(key)
         if dynamic:
-            claims.append(Claim("env_var", "<dynamic>", Location(region.file, line, col + 1),
-                                hard=False))
+            claims.append(
+                Claim("env_var", "<dynamic>", Location(region.file, line, col + 1), hard=False)
+            )
         else:
-            claims.append(Claim("env_var", name, Location(region.file, line, col + 1),
-                                {"default": True} if default else {}))
+            claims.append(
+                Claim(
+                    "env_var",
+                    name,
+                    Location(region.file, line, col + 1),
+                    {"default": True} if default else {},
+                )
+            )
     return claims
 
 
@@ -478,7 +562,8 @@ def _scan_python(text: str, reads_declare: bool = False) -> list[tuple[str, str]
         elif isinstance(node, ast.Assign):
             for target in node.targets:
                 if isinstance(target, ast.Subscript) and _dotted(target.value) in (
-                    "os.environ", "environ"
+                    "os.environ",
+                    "environ",
                 ):
                     name = _str(target.slice)
                     if name:

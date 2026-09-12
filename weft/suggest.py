@@ -67,8 +67,11 @@ def did_you_mean(
         d = levenshtein(lname, lc, cap)
         ctoks = tokens(cand)
         overlap = len(ltoks & ctoks) if ltoks else 0
-        by_tokens = overlap >= 2 or (bool(ltoks) and overlap == len(ltoks)) or (
-            bool(ctoks) and overlap == len(ctoks))
+        by_tokens = (
+            overlap >= 2
+            or (bool(ltoks) and overlap == len(ltoks))
+            or (bool(ctoks) and overlap == len(ctoks))
+        )
         if d <= cap or by_tokens:
             scored.append((d - overlap, d, cand))
     scored.sort()

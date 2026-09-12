@@ -47,13 +47,16 @@ AGENT_FILES: dict[str, tuple[str, str]] = {
     "vscode": (".vscode/mcp.json", "servers"),  # VS Code / GitHub Copilot agent mode
 }
 AGENT_SNIPPETS: dict[str, str] = {
-    "codex": ("# ~/.codex/config.toml\n[mcp_servers.weft]\ncommand = \"weft\"\n"
-              "args = [\"mcp\"]\n"),
-    "windsurf": ("# ~/.codeium/windsurf/mcp_config.json\n"
-                 "{\"mcpServers\": {\"weft\": {\"command\": \"weft\", \"args\": [\"mcp\"]}}}\n"),
-    "claude-desktop": ("# claude_desktop_config.json\n"
-                       "{\"mcpServers\": {\"weft\": {\"command\": \"weft\", "
-                       "\"args\": [\"mcp\"]}}}\n"),
+    "codex": ('# ~/.codex/config.toml\n[mcp_servers.weft]\ncommand = "weft"\nargs = ["mcp"]\n'),
+    "windsurf": (
+        "# ~/.codeium/windsurf/mcp_config.json\n"
+        '{"mcpServers": {"weft": {"command": "weft", "args": ["mcp"]}}}\n'
+    ),
+    "claude-desktop": (
+        "# claude_desktop_config.json\n"
+        '{"mcpServers": {"weft": {"command": "weft", '
+        '"args": ["mcp"]}}}\n'
+    ),
 }
 ALL_AGENTS = tuple(AGENT_FILES) + tuple(AGENT_SNIPPETS)
 
@@ -77,8 +80,9 @@ def run(
         wanted = list(ALL_AGENTS)
     unknown = [a for a in wanted if a not in ALL_AGENTS]
     if unknown:
-        raise ValueError(f"unknown agent(s) {', '.join(unknown)}; choose from "
-                         f"{', '.join(ALL_AGENTS)} or 'all'")
+        raise ValueError(
+            f"unknown agent(s) {', '.join(unknown)}; choose from {', '.join(ALL_AGENTS)} or 'all'"
+        )
     snippets: dict[str, str] = {}
 
     existing = repo_config_path(repo_root)
@@ -92,8 +96,13 @@ def run(
     if "claude" in wanted and hooks:
         settings_path = os.path.join(repo_root, ".claude", "settings.json")
         merged, changed = merge_claude_settings(_read_json(settings_path))
-        plan.append(("write" if changed else "keep", ".claude/settings.json",
-                     json.dumps(merged, indent=2) + "\n"))
+        plan.append(
+            (
+                "write" if changed else "keep",
+                ".claude/settings.json",
+                json.dumps(merged, indent=2) + "\n",
+            )
+        )
     for agent in wanted:
         if agent in AGENT_FILES:
             rel, key = AGENT_FILES[agent]
@@ -225,8 +234,10 @@ def _cleanup(path: str) -> None:
 
 
 def _render_setup(summary: dict[str, Any], plan: list[tuple[str, str, str]]) -> str:
-    lines = [f"repo:  {summary['repo_root']}",
-             f"stack: {', '.join(summary['stack']) or '(not detected)'}"]
+    lines = [
+        f"repo:  {summary['repo_root']}",
+        f"stack: {', '.join(summary['stack']) or '(not detected)'}",
+    ]
     for action, rel, note in plan:
         if action == "keep":
             lines.append(f"  keep   {rel}  ({note})")
@@ -243,9 +254,11 @@ def _render_setup(summary: dict[str, Any], plan: list[tuple[str, str, str]]) -> 
         lines.append(f"  {agent}: this agent keeps MCP config globally; add:")
         lines.extend("      " + ln for ln in snippet.rstrip("\n").splitlines())
     if not summary.get("agents"):
-        lines.append("  hint   run `weft setup --hooks` to wire git pre-commit, the Claude Code "
-                     "PreToolUse hook, and the MCP server entry; add --agents cursor,vscode,all "
-                     "for other agents")
+        lines.append(
+            "  hint   run `weft setup --hooks` to wire git pre-commit, the Claude Code "
+            "PreToolUse hook, and the MCP server entry; add --agents cursor,vscode,all "
+            "for other agents"
+        )
     return "\n".join(lines)
 
 
@@ -269,8 +282,11 @@ def claude_hook(repo_root: str, stdin_text: str, store_path: str | None = None) 
         if content is None:
             return 0
         root = repo_root if _inside(file_path, repo_root) else find_repo_root(file_path)
-        rel = os.path.relpath(os.path.abspath(file_path), root) if os.path.isabs(
-            file_path) else file_path
+        rel = (
+            os.path.relpath(os.path.abspath(file_path), root)
+            if os.path.isabs(file_path)
+            else file_path
+        )
         with gate.Session(root, store_path=store_path) as session:
             result = session.check_change(Change.from_text(rel, content))
         config = session.config
@@ -281,14 +297,25 @@ def claude_hook(repo_root: str, stdin_text: str, store_path: str | None = None) 
         from . import ledger
 
         ledger.record(result, root, "hook")
-        print("weft blocked this edit: it references something that does not resolve.\n"
-              + render_text(result), file=sys.stderr)
+        print(
+            "weft blocked this edit: it references something that does not resolve.\n"
+            + render_text(result),
+            file=sys.stderr,
+        )
         return 2
     notes = [f for f in result.findings if f.level.value in ("review", "unverifiable")]
     if notes:
         context = "weft notes (non-blocking):\n" + render_text(result)
-        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
-                                                 "additionalContext": context}}))
+        print(
+            json.dumps(
+                {
+                    "hookSpecificOutput": {
+                        "hookEventName": "PreToolUse",
+                        "additionalContext": context,
+                    }
+                }
+            )
+        )
     _ = config
     return 0
 

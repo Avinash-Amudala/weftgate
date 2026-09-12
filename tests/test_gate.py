@@ -140,8 +140,9 @@ def test_claim_mode_and_unknown_kinds(tmp_path):
 
 
 def test_claims_from_json_shapes_and_errors():
-    claims = claims_from_json([{"kind": "route", "method": "post", "path": "/users",
-                               "handler": "users.create"}])
+    claims = claims_from_json(
+        [{"kind": "route", "method": "post", "path": "/users", "handler": "users.create"}]
+    )
     assert claims[0].kind == "route_handler" and claims[0].subject == "POST /users"
     assert claims[0].attrs["handler"] == "users.create"
     with pytest.raises(ValueError):

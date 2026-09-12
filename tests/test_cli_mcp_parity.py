@@ -45,30 +45,47 @@ def test_direct_parity_check_change(tmp_path, capsys):
     # New content that is not on disk: same path through both surfaces.
     content_file = write(str(tmp_path), "content.txt", BAD)
     via_cli2, _ = _cli_json(
-        ["--repo", root, "--format", "json", "check", "--path", "bad.py",
-         "--content", content_file],
+        [
+            "--repo",
+            root,
+            "--format",
+            "json",
+            "check",
+            "--path",
+            "bad.py",
+            "--content",
+            content_file,
+        ],
         capsys,
     )
-    via_mcp2 = mcp_server.call_tool("check_change", {"repo": root, "path": "bad.py",
-                                                     "content": BAD})
+    via_mcp2 = mcp_server.call_tool(
+        "check_change", {"repo": root, "path": "bad.py", "content": BAD}
+    )
     assert via_cli2 == via_mcp2 == via_cli
 
 
 def test_direct_parity_claims_suggest_status(tmp_path, capsys):
     root = _repo(tmp_path)
-    claims = [{"kind": "env_var", "subject": "DATABSE_URL"}, {"kind": "tests_pass",
-                                                              "command": "pytest -q"}]
-    via_cli, code = _cli_json(["--repo", root, "--format", "json", "claim", json.dumps(claims)],
-                              capsys)
+    claims = [
+        {"kind": "env_var", "subject": "DATABSE_URL"},
+        {"kind": "tests_pass", "command": "pytest -q"},
+    ]
+    via_cli, code = _cli_json(
+        ["--repo", root, "--format", "json", "claim", json.dumps(claims)], capsys
+    )
     via_mcp = mcp_server.call_tool("check_claim", {"repo": root, "claims": claims})
     assert via_cli == via_mcp and code == 1
     via_cli, _ = _cli_json(
         ["--repo", root, "--format", "json", "suggest", "env_var", "DATABSE_URL"], capsys
     )
-    via_mcp = mcp_server.call_tool("suggest", {"repo": root, "kind": "env_var",
-                                              "subject": "DATABSE_URL"})
-    assert via_cli == via_mcp == {"kind": "env_var", "subject": "DATABSE_URL",
-                                  "suggestions": ["DATABASE_URL"]}
+    via_mcp = mcp_server.call_tool(
+        "suggest", {"repo": root, "kind": "env_var", "subject": "DATABSE_URL"}
+    )
+    assert (
+        via_cli
+        == via_mcp
+        == {"kind": "env_var", "subject": "DATABSE_URL", "suggestions": ["DATABASE_URL"]}
+    )
     via_cli, _ = _cli_json(["--repo", root, "--format", "json", "index", "--status"], capsys)
     via_mcp = mcp_server.call_tool("index_status", {"repo": root})
     assert via_cli == via_mcp
@@ -109,8 +126,12 @@ def test_stdin_diff_and_directory(tmp_path, capsys, monkeypatch):
 def test_mcp_tool_errors_are_reported_not_raised(tmp_path):
     root = _repo(tmp_path)
     resp = mcp_server.handle_message(
-        {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-         "params": {"name": "check_change", "arguments": {"repo": root}}}
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "check_change", "arguments": {"repo": root}},
+        }
     )
     assert resp is not None and resp["result"]["isError"] is True
     resp = mcp_server.handle_message({"jsonrpc": "2.0", "id": 2, "method": "nope"})
@@ -118,8 +139,12 @@ def test_mcp_tool_errors_are_reported_not_raised(tmp_path):
     note = {"jsonrpc": "2.0", "method": "notifications/initialized"}
     assert mcp_server.handle_message(note) is None
     resp = mcp_server.handle_message(
-        {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-         "params": {"name": "check_change", "arguments": {"repo": root, "path": "missing.py"}}}
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "check_change", "arguments": {"repo": root, "path": "missing.py"}},
+        }
     )
     assert resp is not None and "no such file" in resp["result"]["content"][0]["text"]
 
@@ -130,29 +155,51 @@ def _rpc_lines(msgs: list[dict]) -> str:
 
 def test_stdio_server_subprocess_matches_cli(tmp_path, capsys):
     root = _repo(tmp_path)
-    via_cli, _ = _cli_json(["--repo", root, "--format", "json", "check",
-                            os.path.join(root, "bad.py")], capsys)
+    via_cli, _ = _cli_json(
+        ["--repo", root, "--format", "json", "check", os.path.join(root, "bad.py")], capsys
+    )
     msgs = [
-        {"jsonrpc": "2.0", "id": 1, "method": "initialize",
-         "params": {"protocolVersion": "2025-06-18", "capabilities": {},
-                    "clientInfo": {"name": "t", "version": "0"}}},
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "t", "version": "0"},
+            },
+        },
         {"jsonrpc": "2.0", "method": "notifications/initialized"},
         {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
-        {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-         "params": {"name": "check_change", "arguments": {"path": "bad.py"}}},
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "check_change", "arguments": {"path": "bad.py"}},
+        },
         "this is not json",
     ]
     stdin = _rpc_lines([m for m in msgs if isinstance(m, dict)]) + "this is not json\n"
     proc = subprocess.run(
-        [sys.executable, "-m", "weft.mcp_server"], input=stdin, capture_output=True, text=True,
-        cwd=root, check=False, timeout=120,
+        [sys.executable, "-m", "weft.mcp_server"],
+        input=stdin,
+        capture_output=True,
+        text=True,
+        cwd=root,
+        check=False,
+        timeout=120,
     )
     assert proc.returncode == 0, proc.stderr
     responses = [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
     by_id = {r.get("id"): r for r in responses}
     assert by_id[1]["result"]["serverInfo"]["name"] == "weft"
     assert {t["name"] for t in by_id[2]["result"]["tools"]} >= {
-        "check_change", "check_claim", "audit", "suggest", "index_status"}
+        "check_change",
+        "check_claim",
+        "audit",
+        "suggest",
+        "index_status",
+    }
     call = by_id[3]["result"]
     assert call["isError"] is False
     assert call["structuredContent"] == via_cli
@@ -167,14 +214,16 @@ def test_official_mcp_client_drives_the_server(tmp_path, capsys):
     from mcp.client.stdio import StdioServerParameters, stdio_client
 
     root = _repo(tmp_path)
-    via_cli, _ = _cli_json(["--repo", root, "--format", "json", "check",
-                            os.path.join(root, "bad.py")], capsys)
+    via_cli, _ = _cli_json(
+        ["--repo", root, "--format", "json", "check", os.path.join(root, "bad.py")], capsys
+    )
 
     errlog = open(os.path.join(str(tmp_path), "server-stderr.log"), "w")  # noqa: SIM115
 
     async def drive() -> tuple[list[str], dict]:
-        params = StdioServerParameters(command=sys.executable, args=["-m", "weft.mcp_server"],
-                                       cwd=root, env=dict(os.environ))
+        params = StdioServerParameters(
+            command=sys.executable, args=["-m", "weft.mcp_server"], cwd=root, env=dict(os.environ)
+        )
         async with stdio_client(params, errlog=errlog) as (read, write_):
             async with mcp.ClientSession(read, write_) as session:
                 await session.initialize()

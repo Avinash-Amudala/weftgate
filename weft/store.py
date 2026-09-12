@@ -281,7 +281,8 @@ class Store:
             if out is not None:
                 paths = [p for p in out.split("\0") if p]
                 return [
-                    p for p in self._filter(paths)
+                    p
+                    for p in self._filter(paths)
                     if os.path.isfile(os.path.join(self.repo_root, p))
                 ]
         return self._filter(self._walk().keys())
@@ -324,7 +325,8 @@ class Store:
 
     def _valid_commit(self, commit: str | None) -> bool:
         return bool(
-            commit and self.is_git_repo()
+            commit
+            and self.is_git_repo()
             and self._git("cat-file", "-e", f"{commit}^{{commit}}") is not None
         )
 
@@ -413,7 +415,7 @@ class Namespace:
             (f"{self.oracle}__%",),
         ).fetchall()
         prefix = f"{self.oracle}__"
-        return [str(r[0])[len(prefix):] for r in rows]
+        return [str(r[0])[len(prefix) :] for r in rows]
 
     def ensure_table(self, name: str, columns: str, indexes: Sequence[str] = ()) -> None:
         t = self.table(name)

@@ -18,10 +18,34 @@ BLOCK_ON_VALUES = ("reject", "review", "never")
 # Directories never worth indexing. Shared by every walker in the tool.
 IGNORED_DIRS = frozenset(
     {
-        ".git", ".hg", ".svn", ".venv", "venv", "env", ".env", "node_modules", "__pycache__",
-        ".mypy_cache", ".pytest_cache", ".ruff_cache", ".tox", ".nox", ".eggs", "dist", "build",
-        "site-packages", ".next", ".nuxt", ".cache", ".idea", ".vscode", "target", "vendor",
-        "coverage", ".turbo", ".parcel-cache",
+        ".git",
+        ".hg",
+        ".svn",
+        ".venv",
+        "venv",
+        "env",
+        ".env",
+        "node_modules",
+        "__pycache__",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".tox",
+        ".nox",
+        ".eggs",
+        "dist",
+        "build",
+        "site-packages",
+        ".next",
+        ".nuxt",
+        ".cache",
+        ".idea",
+        ".vscode",
+        "target",
+        "vendor",
+        "coverage",
+        ".turbo",
+        ".parcel-cache",
     }
 )
 
@@ -305,8 +329,16 @@ def detect_stack(repo_root: str, config: Config | None = None) -> list[str]:
         return sorted(set(config.stack))
     found: set[str] = set()
     root_files = set(_listdir(repo_root))
-    if root_files & {"pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile",
-                     "poetry.lock", "uv.lock", "Pipfile.lock"}:
+    if root_files & {
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "requirements.txt",
+        "Pipfile",
+        "poetry.lock",
+        "uv.lock",
+        "Pipfile.lock",
+    }:
         found.add("python")
     if root_files & {"package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock"}:
         found.add("node")
@@ -316,18 +348,32 @@ def detect_stack(repo_root: str, config: Config | None = None) -> list[str]:
         found.add("rust")
     if root_files & {"Gemfile"}:
         found.add("ruby")
-    if _mentions(repo_root, ("pyproject.toml", "requirements.txt", "poetry.lock", "uv.lock",
-                            "Pipfile", "Pipfile.lock", "setup.py", "setup.cfg"), "fastapi"):
+    if _mentions(
+        repo_root,
+        (
+            "pyproject.toml",
+            "requirements.txt",
+            "poetry.lock",
+            "uv.lock",
+            "Pipfile",
+            "Pipfile.lock",
+            "setup.py",
+            "setup.cfg",
+        ),
+        "fastapi",
+    ):
         found.update({"python", "fastapi"})
     if _mentions(repo_root, ("package.json",), '"express"'):
         found.update({"node", "express"})
     if _mentions(repo_root, ("package.json",), '"next"'):
         found.update({"node", "nextjs"})
-    if _mentions(repo_root, ("pyproject.toml", "requirements.txt", "poetry.lock", "uv.lock"),
-                 "django"):
+    if _mentions(
+        repo_root, ("pyproject.toml", "requirements.txt", "poetry.lock", "uv.lock"), "django"
+    ):
         found.update({"python", "django"})
-    if _mentions(repo_root, ("pyproject.toml", "requirements.txt", "poetry.lock", "uv.lock"),
-                 "flask"):
+    if _mentions(
+        repo_root, ("pyproject.toml", "requirements.txt", "poetry.lock", "uv.lock"), "flask"
+    ):
         found.update({"python", "flask"})
     return sorted(found)
 

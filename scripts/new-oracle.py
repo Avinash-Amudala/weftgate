@@ -182,8 +182,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("name", help="oracle name, e.g. config_keys")
     ap.add_argument("--kind", required=True, help="claim kind, e.g. config_key")
-    ap.add_argument("--package", default="weft",
-                    help="package to write into (default: weft, in-tree)")
+    ap.add_argument(
+        "--package", default="weft", help="package to write into (default: weft, in-tree)"
+    )
     ap.add_argument("--root", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     args = ap.parse_args()
     if not re.fullmatch(r"[a-z][a-z0-9_]*", args.name):
@@ -211,8 +212,10 @@ def main() -> int:
     if in_tree:
         _register_in_tree(args.root, args.name)
     else:
-        print(f'register it: entry point [project.entry-points."weft.oracles"] '
-              f'{args.name} = "{module}:register", or list "{module}" in weft.toml')
+        print(
+            f'register it: entry point [project.entry-points."weft.oracles"] '
+            f'{args.name} = "{module}:register", or list "{module}" in weft.toml'
+        )
     print("next: replace every TODO, then run the four checks")
     return 0
 

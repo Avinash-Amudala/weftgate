@@ -152,7 +152,7 @@ def module_of_file(rel: str, roots: Sequence[str] = ("", "src", "lib")) -> str |
         prefix = f"{root}/" if root else ""
         if root and not rel.startswith(prefix):
             continue
-        body = rel[len(prefix):-3]
+        body = rel[len(prefix) : -3]
         parts = body.split("/")
         if parts[-1] == "__init__":
             parts = parts[:-1]
@@ -175,12 +175,21 @@ def is_docs_path(rel: str) -> bool:
 def soften_docs(claims: list[Claim], rel: str) -> list[Claim]:
     if not is_docs_path(rel):
         return claims
-    return [Claim(c.kind, c.subject, c.location, {**c.attrs, "docs": True}, False, c.source)
-            for c in claims]
+    return [
+        Claim(c.kind, c.subject, c.location, {**c.attrs, "docs": True}, False, c.source)
+        for c in claims
+    ]
 
 
-PROJECT_MARKERS = ("pyproject.toml", "setup.cfg", "setup.py", "Pipfile", "requirements.txt",
-                   "requirements-dev.txt", "manage.py")
+PROJECT_MARKERS = (
+    "pyproject.toml",
+    "setup.cfg",
+    "setup.py",
+    "Pipfile",
+    "requirements.txt",
+    "requirements-dev.txt",
+    "manage.py",
+)
 DEFAULT_ROOTS = ("", "src", "lib")
 
 
@@ -218,5 +227,5 @@ def file_of_module(
         for cand in (f"{rel}.py", f"{rel}/__init__.py"):
             full = os.path.join(base, cand)
             if os.path.isfile(full):
-                return (f"{root}/{cand}" if root else cand)
+                return f"{root}/{cand}" if root else cand
     return None

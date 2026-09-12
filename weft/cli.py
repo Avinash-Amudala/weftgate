@@ -91,24 +91,41 @@ def _global_options(parser: argparse.ArgumentParser, top: bool) -> None:
     """--repo/--format/--store are accepted before *and* after the subcommand.
     On subparsers the default is SUPPRESS so an absent option keeps the top-level value."""
     default: Any = argparse.SUPPRESS
-    parser.add_argument("--repo", default=None if top else default,
-                        help="repository root (default: nearest .git or weft.toml)")
-    parser.add_argument("--format", choices=FORMATS, default="text" if top else default,
-                        help="output format (default: text)")
-    parser.add_argument("--store", default=None if top else default,
-                        help="explicit SQLite index path (default: cache dir)")
+    parser.add_argument(
+        "--repo",
+        default=None if top else default,
+        help="repository root (default: nearest .git or weft.toml)",
+    )
+    parser.add_argument(
+        "--format",
+        choices=FORMATS,
+        default="text" if top else default,
+        help="output format (default: text)",
+    )
+    parser.add_argument(
+        "--store",
+        default=None if top else default,
+        help="explicit SQLite index path (default: cache dir)",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="weft", description=__doc__.split("\n\n")[0],
-                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(
+        prog="weft",
+        description=__doc__.split("\n\n")[0],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     p.add_argument("--version", action="version", version=f"weft {__version__}")
     _global_options(p, top=True)
     sub = p.add_subparsers(dest="command")
 
     c = sub.add_parser("check", help="verify files, directories, or a diff")
-    c.add_argument("targets", nargs="*", default=[],
-                   help="files and/or directories, or '-' for a unified diff on stdin")
+    c.add_argument(
+        "targets",
+        nargs="*",
+        default=[],
+        help="files and/or directories, or '-' for a unified diff on stdin",
+    )
     c.add_argument("--staged", action="store_true", help="check the staged git diff")
     c.add_argument("--git", action="store_true", help="check the working-tree git diff")
     c.add_argument("--path", help="repo-relative path for --content")
@@ -116,8 +133,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     cl = sub.add_parser("claim", help="verify structured claims")
     cl.add_argument("claims", nargs="?", default="-", help="JSON, @file, or '-' for stdin")
-    cl.add_argument("--run", action="store_true",
-                    help="allow re-running named test commands / probing local URLs")
+    cl.add_argument(
+        "--run",
+        action="store_true",
+        help="allow re-running named test commands / probing local URLs",
+    )
 
     a = sub.add_parser("audit", help="sweep the repo for latent broken edges")
     a.add_argument("paths", nargs="*", help="limit to these files or directories")
@@ -125,9 +145,12 @@ def build_parser() -> argparse.ArgumentParser:
     i = sub.add_parser("index", help="build or refresh the index")
     i.add_argument("--rebuild", action="store_true")
     i.add_argument("--status", action="store_true")
-    i.add_argument("--show", choices=["env", "routes", "imports"],
-                   help="dump what an oracle indexed: declared env names, the route table, "
-                        "or provided packages")
+    i.add_argument(
+        "--show",
+        choices=["env", "routes", "imports"],
+        help="dump what an oracle indexed: declared env names, the route table, "
+        "or provided packages",
+    )
 
     sub.add_parser("doctor", help="explain the setup and what to fix")
     lg = sub.add_parser("ledger", help="blocked changes caught before they shipped")
@@ -148,9 +171,12 @@ def build_parser() -> argparse.ArgumentParser:
     st.add_argument("--hooks", action="store_true", help="also write git + Claude Code hooks")
     st.add_argument("--dry-run", action="store_true")
     st.add_argument("--force", action="store_true", help="overwrite an existing weft.toml")
-    st.add_argument("--agents", default=None,
-                    help="comma-separated agents to configure: claude, cursor, vscode, codex, "
-                         "windsurf, claude-desktop, or all")
+    st.add_argument(
+        "--agents",
+        default=None,
+        help="comma-separated agents to configure: claude, cursor, vscode, codex, "
+        "windsurf, claude-desktop, or all",
+    )
 
     h = sub.add_parser("hook", help="agent hook adapters")
     h.add_argument("agent", choices=["claude"])
@@ -248,16 +274,23 @@ def cmd_index(args: argparse.Namespace) -> int:
         if args.show:
             session.sync()
             dump = _index_dump(session, args.show)
-            print(json.dumps(dump, indent=2, sort_keys=True) if args.format == "json"
-                  else _render_dump(args.show, dump))
+            print(
+                json.dumps(dump, indent=2, sort_keys=True)
+                if args.format == "json"
+                else _render_dump(args.show, dump)
+            )
             return 0
         if args.status:
             info: dict[str, Any] = session.status()
         else:
             report = session.sync(force_rebuild=args.rebuild)
-            info = {"repo_root": session.store.repo_root, "store": session.store.path,
-                    "commit": session.ctx.git_commit, "oracles": report,
-                    "sync_errors": dict(session.sync_errors)}
+            info = {
+                "repo_root": session.store.repo_root,
+                "store": session.store.path,
+                "commit": session.ctx.git_commit,
+                "oracles": report,
+                "sync_errors": dict(session.sync_errors),
+            }
     if args.format == "json":
         print(json.dumps(info, indent=2, sort_keys=True))
     else:
@@ -310,8 +343,10 @@ def _render_dump(what: str, dump: Any) -> str:
         rows = [f"{name:40} {', '.join(files)}" for name, files in dump.items()]
         return "\n".join(rows) or "(none)"
     if what == "routes":
-        rows = [f"{r['method']:9} {r['path']:40} {r['handler']:30} {r['file']}:{r['line']}"
-                for r in dump]
+        rows = [
+            f"{r['method']:9} {r['path']:40} {r['handler']:30} {r['file']}:{r['line']}"
+            for r in dump
+        ]
         return "\n".join(rows) or "(no routes)"
     lines = []
     for lang, dists in dump.items():
@@ -336,8 +371,11 @@ def cmd_ledger(args: argparse.Namespace) -> int:
         print("ledger cleared")
         return 0
     info = ledger.summary()
-    print(json.dumps(info, indent=2, sort_keys=True) if args.format == "json"
-          else ledger.render_text(info))
+    print(
+        json.dumps(info, indent=2, sort_keys=True)
+        if args.format == "json"
+        else ledger.render_text(info)
+    )
     return 0
 
 
@@ -356,8 +394,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
 
     if args.eval_command != "mutate":
         raise SystemExit("usage: weft eval mutate [--seed N] [--fixture]")
-    report = mutate.run(None if args.fixture else _repo(args), seed=args.seed,
-                        count=args.count)
+    report = mutate.run(None if args.fixture else _repo(args), seed=args.seed, count=args.count)
     if args.format == "json":
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
     else:
@@ -369,8 +406,14 @@ def cmd_setup(args: argparse.Namespace) -> int:
     from . import setup
 
     agents = [a.strip() for a in str(args.agents or "").split(",") if a.strip()]
-    return setup.run(_repo(args), hooks=args.hooks, dry_run=args.dry_run, force=args.force,
-                     fmt=args.format, agents=agents or None)
+    return setup.run(
+        _repo(args),
+        hooks=args.hooks,
+        dry_run=args.dry_run,
+        force=args.force,
+        fmt=args.format,
+        agents=agents or None,
+    )
 
 
 def cmd_hook(args: argparse.Namespace) -> int:
@@ -386,9 +429,17 @@ def cmd_mcp(args: argparse.Namespace) -> int:
 
 
 _COMMANDS = {
-    "check": cmd_check, "claim": cmd_claim, "audit": cmd_audit, "index": cmd_index,
-    "suggest": cmd_suggest, "eval": cmd_eval, "setup": cmd_setup, "hook": cmd_hook,
-    "mcp": cmd_mcp, "doctor": cmd_doctor, "ledger": cmd_ledger,
+    "check": cmd_check,
+    "claim": cmd_claim,
+    "audit": cmd_audit,
+    "index": cmd_index,
+    "suggest": cmd_suggest,
+    "eval": cmd_eval,
+    "setup": cmd_setup,
+    "hook": cmd_hook,
+    "mcp": cmd_mcp,
+    "doctor": cmd_doctor,
+    "ledger": cmd_ledger,
 }
 
 

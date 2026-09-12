@@ -28,8 +28,9 @@ def _check(root, code, name="m.py", ctx=None):
     return {f.claim.subject: f for f in (oracle.check(c, ctx) for c in oracle.extract(change, ctx))}
 
 
-def _repo(tmp_path, lock="requirements.txt",
-          body="requests==2.32.0\nPyYAML==6.0.2\nflask==3.0.3\n"):
+def _repo(
+    tmp_path, lock="requirements.txt", body="requests==2.32.0\nPyYAML==6.0.2\nflask==3.0.3\n"
+):
     root = str(tmp_path / "repo")
     os.makedirs(root, exist_ok=True)
     write(root, lock, body)
@@ -59,8 +60,17 @@ def test_true_negative_locked_stdlib_and_local_accept(tmp_path):
         "import requests\nfrom flask.views import View\nimport yaml\n"
         "from app.models import Thing\nimport helpers\nfrom . import sibling\n",
     )
-    for name in ("os", "sys", "json", "collections", "requests", "flask.views", "yaml",
-                 "app.models", "helpers"):
+    for name in (
+        "os",
+        "sys",
+        "json",
+        "collections",
+        "requests",
+        "flask.views",
+        "yaml",
+        "app.models",
+        "helpers",
+    ):
         assert res[name].level is Level.ACCEPT, (name, res[name].reason)
     assert "PyYAML" in res["yaml"].reason  # alias table: import yaml <- PyYAML
     assert "sibling" not in res  # relative imports are never claims
@@ -116,12 +126,33 @@ def test_substring_relation_reviews_not_rejects(tmp_path):
 
 def test_node_imports(tmp_path):
     root = str(tmp_path / "repo")
-    write(root, "package.json", json.dumps({
-        "name": "site", "dependencies": {"lodash": "4", "@scope/pkg": "1", "react": "18"},
-        "devDependencies": {"vitest": "1"}, "workspaces": ["packages/*"]}))
-    write(root, "package-lock.json", json.dumps({"name": "site", "packages": {
-        "node_modules/lodash": {}, "node_modules/@scope/pkg": {}, "node_modules/react": {},
-        "node_modules/vitest": {}}}))
+    write(
+        root,
+        "package.json",
+        json.dumps(
+            {
+                "name": "site",
+                "dependencies": {"lodash": "4", "@scope/pkg": "1", "react": "18"},
+                "devDependencies": {"vitest": "1"},
+                "workspaces": ["packages/*"],
+            }
+        ),
+    )
+    write(
+        root,
+        "package-lock.json",
+        json.dumps(
+            {
+                "name": "site",
+                "packages": {
+                    "node_modules/lodash": {},
+                    "node_modules/@scope/pkg": {},
+                    "node_modules/react": {},
+                    "node_modules/vitest": {},
+                },
+            }
+        ),
+    )
     write(root, "packages/ui/package.json", json.dumps({"name": "@site/ui"}))
     write(root, "node_modules/leftpad/package.json", "{}")
     res = _check(
@@ -152,39 +183,61 @@ def test_lockfile_parsers(tmp_path):
     assert _parse_manifest("Pipfile.lock", pipfile_lock, ctx, "x")[0] == {"numpy", "black"}
     pipfile = '[packages]\nnumpy = "*"\n\n[dev-packages]\nblack = "*"\n'
     assert _parse_manifest("Pipfile", pipfile, ctx, "Pipfile")[0] == {"numpy", "black"}
-    req = ("# comment\nrequests[security]==2.0 ; python_version>'3'\n-r other.txt\n"
-           "-e git+https://x/y.git#egg=mypkg\nhttpx @ https://example/httpx.whl\n"
-           "--index-url https://pypi.org/simple\nfoo-bar_baz\n")
+    req = (
+        "# comment\nrequests[security]==2.0 ; python_version>'3'\n-r other.txt\n"
+        "-e git+https://x/y.git#egg=mypkg\nhttpx @ https://example/httpx.whl\n"
+        "--index-url https://pypi.org/simple\nfoo-bar_baz\n"
+    )
     assert _parse_manifest("requirements-dev.txt", req, ctx, "r")[0] == {
-        "requests", "mypkg", "httpx", "foo-bar_baz"}
-    pyproject = ('[project]\nname = "my-proj"\n'
-                 'dependencies = ["fastapi>=0.1", "uvicorn[standard]"]\n'
-                 '[project.optional-dependencies]\ndev = ["pytest"]\n'
-                 '[tool.poetry.dependencies]\npython = "^3.10"\nrich = "*"\n'
-                 '[tool.poetry.group.dev.dependencies]\nmypy = "*"\n'
-                 '[dependency-groups]\nlint = ["ruff"]\n')
+        "requests",
+        "mypkg",
+        "httpx",
+        "foo-bar_baz",
+    }
+    pyproject = (
+        '[project]\nname = "my-proj"\n'
+        'dependencies = ["fastapi>=0.1", "uvicorn[standard]"]\n'
+        '[project.optional-dependencies]\ndev = ["pytest"]\n'
+        '[tool.poetry.dependencies]\npython = "^3.10"\nrich = "*"\n'
+        '[tool.poetry.group.dev.dependencies]\nmypy = "*"\n'
+        '[dependency-groups]\nlint = ["ruff"]\n'
+    )
     dists, own = _parse_manifest("pyproject.toml", pyproject, ctx, "pyproject.toml")
     assert dists == {"fastapi", "uvicorn", "pytest", "rich", "mypy", "ruff"} and own == {"my_proj"}
-    cfg = "[options]\ninstall_requires =\n    attrs>=20\n    six\n[options.extras_require]\n" \
-          "test =\n    pytest\n"
+    cfg = (
+        "[options]\ninstall_requires =\n    attrs>=20\n    six\n[options.extras_require]\n"
+        "test =\n    pytest\n"
+    )
     assert _parse_manifest("setup.cfg", cfg, ctx, "setup.cfg")[0] == {"attrs", "six", "pytest"}
     conda = "dependencies:\n  - python=3.11\n  - numpy=1.26\n  - pip\n  - pip:\n    - torch\n"
     assert _parse_manifest("environment.yml", conda, ctx, "e")[0] == {"numpy", "torch"}
-    lock = json.dumps({"name": "site", "packages": {
-        "": {"dependencies": {"react": "18"}},
-        "node_modules/react": {}, "node_modules/react/node_modules/loose-envify": {},
-        "node_modules/@scope/x": {}, "packages/ui": {"name": "@site/ui"}},
-        "dependencies": {"legacy": {"dependencies": {"nested": {}}}}})
+    lock = json.dumps(
+        {
+            "name": "site",
+            "packages": {
+                "": {"dependencies": {"react": "18"}},
+                "node_modules/react": {},
+                "node_modules/react/node_modules/loose-envify": {},
+                "node_modules/@scope/x": {},
+                "packages/ui": {"name": "@site/ui"},
+            },
+            "dependencies": {"legacy": {"dependencies": {"nested": {}}}},
+        }
+    )
     dists, own = _parse_manifest("package-lock.json", lock, ctx, "package-lock.json")
     assert dists == {"react", "loose-envify", "@scope/x", "legacy", "nested"}
     assert own == {"site", "@site/ui"}
-    pnpm = ("lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      lodash:\n"
-            "        specifier: ^4\n        version: 4.17.21\npackages:\n  /lodash@4.17.21:\n"
-            "    resolution: {integrity: sha}\n  '@scope/pkg@1.0.0':\n    resolution: {}\n"
-            "  vite@5.0.0:\n    engines: {node: '>=18'}\n")
+    pnpm = (
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      lodash:\n"
+        "        specifier: ^4\n        version: 4.17.21\npackages:\n  /lodash@4.17.21:\n"
+        "    resolution: {integrity: sha}\n  '@scope/pkg@1.0.0':\n    resolution: {}\n"
+        "  vite@5.0.0:\n    engines: {node: '>=18'}\n"
+    )
     assert _parse_manifest("pnpm-lock.yaml", pnpm, ctx, "p")[0] == {"lodash", "@scope/pkg", "vite"}
-    yarn = ('# yarn lockfile v1\n\n"@babel/core@^7.0.0", "@babel/core@^7.2.0":\n  version "7.2"\n\n'
-            'lodash@^4.17.21:\n  version "4.17.21"\n\n"react@npm:^18.0.0":\n  version "18"\n')
+    yarn = (
+        '# yarn lockfile v1\n\n"@babel/core@^7.0.0", "@babel/core@^7.2.0":\n  version "7.2"\n\n'
+        'lodash@^4.17.21:\n  version "4.17.21"\n\n"react@npm:^18.0.0":\n  version "18"\n'
+    )
     assert _parse_manifest("yarn.lock", yarn, ctx, "y")[0] == {"@babel/core", "lodash", "react"}
     assert _parse_manifest("package.json", "{not json", ctx, "package.json") == (set(), set())
     assert norm("Foo-Bar.baz") == "foo_bar_baz"
@@ -195,8 +248,10 @@ def test_regex_fallback_for_diff_fragments(tmp_path):
     root = _repo(tmp_path)
     ctx = _ctx(root)
     oracle = ImportsLockfileOracle()
-    diff = ("--- a/m.py\n+++ b/m.py\n@@ -5,0 +6,3 @@\n+    import requestz\n"
-            "+    from flask import Flask  # ok\n+    mod = importlib.import_module('yaml')\n")
+    diff = (
+        "--- a/m.py\n+++ b/m.py\n@@ -5,0 +6,3 @@\n+    import requestz\n"
+        "+    from flask import Flask  # ok\n+    mod = importlib.import_module('yaml')\n"
+    )
     change = Change.from_unified_diff(diff)
     res = {f.claim.subject: f for f in (oracle.check(c, ctx) for c in oracle.extract(change, ctx))}
     assert res["requestz"].level is Level.REJECT and res["requestz"].claim.location.line == 6

@@ -49,8 +49,10 @@ _RX_ADD = re.compile(
     r"\s*,\s*([\w.]+|[^,)]+)"
 )
 _RX_INC = re.compile(r"\b(\w+)\.include_router\(\s*([\w.]+|[^,)]+)")
-_RX_DEC = re.compile(r"^\s*@(\w+)\.(get|post|put|delete|patch|options|head|trace|websocket|"
-                     r"api_route|route)\(\s*['\"]([^'\"]*)['\"]")
+_RX_DEC = re.compile(
+    r"^\s*@(\w+)\.(get|post|put|delete|patch|options|head|trace|websocket|"
+    r"api_route|route)\(\s*['\"]([^'\"]*)['\"]"
+)
 
 
 @dataclass
@@ -71,19 +73,27 @@ class RoutesFastAPIOracle(BaseOracle):
     version = "3"
 
     _SYMBOLS = "file TEXT NOT NULL, name TEXT NOT NULL, kind TEXT NOT NULL, target TEXT NOT NULL"
-    _ROUTES = ("file TEXT NOT NULL, line INTEGER NOT NULL, method TEXT NOT NULL, "
-               "path TEXT NOT NULL, handler TEXT NOT NULL, handler_kind TEXT NOT NULL, "
-               "style TEXT NOT NULL, router TEXT NOT NULL")
+    _ROUTES = (
+        "file TEXT NOT NULL, line INTEGER NOT NULL, method TEXT NOT NULL, "
+        "path TEXT NOT NULL, handler TEXT NOT NULL, handler_kind TEXT NOT NULL, "
+        "style TEXT NOT NULL, router TEXT NOT NULL"
+    )
     _ROUTERS = "file TEXT NOT NULL, var TEXT NOT NULL, kind TEXT NOT NULL, prefix TEXT NOT NULL"
-    _INCLUDES = ("file TEXT NOT NULL, line INTEGER NOT NULL, parent TEXT NOT NULL, "
-                 "child TEXT NOT NULL, prefix TEXT NOT NULL")
+    _INCLUDES = (
+        "file TEXT NOT NULL, line INTEGER NOT NULL, parent TEXT NOT NULL, "
+        "child TEXT NOT NULL, prefix TEXT NOT NULL"
+    )
     _FILES = "file TEXT NOT NULL, uses_fastapi INTEGER NOT NULL"
 
     # --- index -----------------------------------------------------------------
 
     def build(self, ctx: Context) -> None:
         rows: dict[str, list[tuple[Any, ...]]] = {
-            "symbols": [], "routes": [], "routers": [], "includes": [], "files": []
+            "symbols": [],
+            "routes": [],
+            "routers": [],
+            "includes": [],
+            "files": [],
         }
         for rel in ctx.files((".py",)):
             self._collect(ctx, rel, rows)
@@ -102,9 +112,9 @@ class RoutesFastAPIOracle(BaseOracle):
         for rel in ctx.store.sync_files(since):
             if not rel.endswith(".py"):
                 continue
-            rows: dict[str, list[tuple[Any, ...]]] = {k: [] for k in
-                                                       ("symbols", "routes", "routers",
-                                                        "includes", "files")}
+            rows: dict[str, list[tuple[Any, ...]]] = {
+                k: [] for k in ("symbols", "routes", "routers", "includes", "files")
+            }
             self._collect(ctx, rel, rows)
             for table, table_rows in rows.items():
                 ns.replace_file(table, rel, sorted(set(table_rows)))
@@ -176,22 +186,38 @@ class RoutesFastAPIOracle(BaseOracle):
         for line, method, path, handler, hkind, style, router in scan.routes:
             if line not in added:
                 continue
-            claims.append(Claim(
-                "route_handler", f"{method} {path}",
-                Location(region.file, line_map.get(line, line)),
-                {"handler": handler, "handler_kind": hkind, "style": style, "router": router,
-                 "symbols": symbols}, hard=hkind != "dynamic",
-            ))
+            claims.append(
+                Claim(
+                    "route_handler",
+                    f"{method} {path}",
+                    Location(region.file, line_map.get(line, line)),
+                    {
+                        "handler": handler,
+                        "handler_kind": hkind,
+                        "style": style,
+                        "router": router,
+                        "symbols": symbols,
+                    },
+                    hard=hkind != "dynamic",
+                )
+            )
         for line, parent, child, prefix in scan.includes:
             if line not in added:
                 continue
-            ckind = "dynamic" if not re.fullmatch(r"[\w.]+", child) else (
-                "attribute" if "." in child else "name")
-            claims.append(Claim(
-                "router_include", child, Location(region.file, line_map.get(line, line)),
-                {"parent": parent, "child_kind": ckind, "prefix": prefix, "symbols": symbols},
-                hard=ckind != "dynamic",
-            ))
+            ckind = (
+                "dynamic"
+                if not re.fullmatch(r"[\w.]+", child)
+                else ("attribute" if "." in child else "name")
+            )
+            claims.append(
+                Claim(
+                    "router_include",
+                    child,
+                    Location(region.file, line_map.get(line, line)),
+                    {"parent": parent, "child_kind": ckind, "prefix": prefix, "symbols": symbols},
+                    hard=ckind != "dynamic",
+                )
+            )
         return claims
 
     # --- check -----------------------------------------------------------------
@@ -216,14 +242,18 @@ class RoutesFastAPIOracle(BaseOracle):
             if router and router not in symbols:
                 if "*" in symbols:
                     return self.review(claim, f"router {router!r} may come from a star import")
-                sugg = did_you_mean(router, _names_of_kind(symbols, ("assign", "import",
-                                                                     "param")))
-                return self.reject(claim, f"decorator uses {router!r}, which is not defined or "
-                                          f"imported in this file", sugg)
+                sugg = did_you_mean(router, _names_of_kind(symbols, ("assign", "import", "param")))
+                return self.reject(
+                    claim,
+                    f"decorator uses {router!r}, which is not defined or imported in this file",
+                    sugg,
+                )
             return self.accept(claim, f"handler {handler!r} defined by the decorator")
         if hkind == "dynamic":
-            return self.review(claim, f"handler for {claim.subject} is computed at runtime "
-                                      f"({handler}); cannot resolve")
+            return self.review(
+                claim,
+                f"handler for {claim.subject} is computed at runtime ({handler}); cannot resolve",
+            )
         return self._resolve(claim, ctx, handler, symbols, what="handler")
 
     def _check_include(self, claim: Claim, ctx: Context) -> Finding:
@@ -245,18 +275,22 @@ class RoutesFastAPIOracle(BaseOracle):
         if binding is None:
             if "*" in symbols:
                 return self.review(claim, f"{what} {ref!r} may come from a star import")
-            sugg = did_you_mean(head, _names_of_kind(symbols, ("def", "class", "import",
-                                                                "assign", "param")))
-            return self.reject(claim, f"{what} {ref!r} is not defined or imported in "
-                                      f"{claim.location.file}", sugg)
+            sugg = did_you_mean(
+                head, _names_of_kind(symbols, ("def", "class", "import", "assign", "param"))
+            )
+            return self.reject(
+                claim, f"{what} {ref!r} is not defined or imported in {claim.location.file}", sugg
+            )
         kind, target = binding
         if kind == "param":
             return self.accept(claim, f"{what} {ref!r} is a parameter bound in this file")
         if kind in ("def", "class", "assign") and not rest:
             return self.accept(claim, f"{what} {ref!r} is defined in this file")
         if kind in ("def", "class", "assign") and rest:
-            return self.review(claim, f"{what} {ref!r} is an attribute of a local object; "
-                                      f"cannot resolve statically")
+            return self.review(
+                claim,
+                f"{what} {ref!r} is an attribute of a local object; cannot resolve statically",
+            )
         if kind == "star":
             return self.review(claim, f"{what} {ref!r} may come from a star import")
         # kind == "import": target is "module" (import x) or "module:attr" (from m import a)
@@ -265,24 +299,35 @@ class RoutesFastAPIOracle(BaseOracle):
             if rest:  # from m import a; a.b -> a submodule, or an attribute of an object
                 sub = _join_module(module, attr)
                 if _module_file(ctx, sub, claim.location.file) is not None:
-                    return self._resolve_in_module(claim, ctx, sub, rest, what, ref,
-                                                   claim.location.file)
-                return self.review(claim, f"{what} {ref!r} is an attribute of an imported "
-                                          f"object; cannot resolve statically")
-            return self._resolve_in_module(claim, ctx, module, attr, what, ref,
-                                           claim.location.file)
+                    return self._resolve_in_module(
+                        claim, ctx, sub, rest, what, ref, claim.location.file
+                    )
+                return self.review(
+                    claim,
+                    f"{what} {ref!r} is an attribute of an imported "
+                    f"object; cannot resolve statically",
+                )
+            return self._resolve_in_module(claim, ctx, module, attr, what, ref, claim.location.file)
         if not rest:
             return self.review(claim, f"{what} {ref!r} is a module, not a callable")
         return self._resolve_in_module(claim, ctx, module, rest, what, ref, claim.location.file)
 
     def _resolve_in_module(
-        self, claim: Claim, ctx: Context, module: str, attr: str, what: str, ref: str,
+        self,
+        claim: Claim,
+        ctx: Context,
+        module: str,
+        attr: str,
+        what: str,
+        ref: str,
         from_file: str,
     ) -> Finding:
         target_file = _module_file(ctx, module, from_file)
         if target_file is None:
-            return self.review(claim, f"{what} {ref!r} comes from {module!r}, which is outside "
-                                      f"the repo; cannot verify")
+            return self.review(
+                claim,
+                f"{what} {ref!r} comes from {module!r}, which is outside the repo; cannot verify",
+            )
         symbols = self._symbols(ctx, target_file)
         if symbols is None:
             text = ctx.read_text(target_file)
@@ -293,8 +338,9 @@ class RoutesFastAPIOracle(BaseOracle):
         head, _, deeper = attr.partition(".")
         if head in symbols:
             if deeper:
-                return self.review(claim, f"{what} {ref!r} nests below {module}.{head}; "
-                                          f"cannot resolve statically")
+                return self.review(
+                    claim, f"{what} {ref!r} nests below {module}.{head}; cannot resolve statically"
+                )
             return self.accept(claim, f"{what} {ref!r} resolves to {target_file}")
         if "*" in symbols:
             return self.review(claim, f"{what} {ref!r}: {target_file} has a star import")
@@ -312,34 +358,62 @@ class RoutesFastAPIOracle(BaseOracle):
         method = method.upper()
         table = self._route_table(ctx)
         want = _norm_path(path)
-        exact = [r for r in table if (method in ("ANY", "*") or r.method == method)
-                 and r.full is not None and _norm_path(r.full) == want]
+        exact = [
+            r
+            for r in table
+            if (method in ("ANY", "*") or r.method == method)
+            and r.full is not None
+            and _norm_path(r.full) == want
+        ]
         if not exact:
-            exact = [r for r in table if (method in ("ANY", "*") or r.method == method)
-                     and r.full is not None and _params_match(_norm_path(r.full), want)]
+            exact = [
+                r
+                for r in table
+                if (method in ("ANY", "*") or r.method == method)
+                and r.full is not None
+                and _params_match(_norm_path(r.full), want)
+            ]
         if exact:
             wanted_handler = claim.attrs.get("handler")
             if wanted_handler:
                 names = {r.handler.split(".")[-1] for r in exact}
                 if str(wanted_handler).split(".")[-1] not in names and all(
-                        r.handler_kind != "dynamic" for r in exact):
+                    r.handler_kind != "dynamic" for r in exact
+                ):
                     return self.reject(
-                        claim, f"{claim.subject} exists but is handled by "
-                               f"{', '.join(sorted(names))}, not {wanted_handler!r}",
-                        sorted(names))
+                        claim,
+                        f"{claim.subject} exists but is handled by "
+                        f"{', '.join(sorted(names))}, not {wanted_handler!r}",
+                        sorted(names),
+                    )
             r = exact[0]
             return self.accept(claim, f"{r.method} {r.full} -> {r.handler} ({r.file}:{r.line})")
-        loose = [r for r in table if (method in ("ANY", "*") or r.method == method)
-                 and r.full is None and _norm_path(r.path) and want.endswith(_norm_path(r.path))]
+        loose = [
+            r
+            for r in table
+            if (method in ("ANY", "*") or r.method == method)
+            and r.full is None
+            and _norm_path(r.path)
+            and want.endswith(_norm_path(r.path))
+        ]
         if loose:
             r = loose[0]
-            return self.review(claim, f"{r.method} {r.path} exists in {r.file} under a prefix "
-                                      f"weft could not resolve; cannot confirm {claim.subject}")
-        same_method = sorted({f"{r.method} {r.full}" for r in table if r.full is not None
-                              and (method in ("ANY", "*") or r.method == method)})
+            return self.review(
+                claim,
+                f"{r.method} {r.path} exists in {r.file} under a prefix "
+                f"weft could not resolve; cannot confirm {claim.subject}",
+            )
+        same_method = sorted(
+            {
+                f"{r.method} {r.full}"
+                for r in table
+                if r.full is not None and (method in ("ANY", "*") or r.method == method)
+            }
+        )
         others = sorted({f"{r.method} {r.full}" for r in table if r.full is not None})
         sugg = did_you_mean(f"{method} {path}", same_method) or did_you_mean(
-            f"{method} {path}", others)
+            f"{method} {path}", others
+        )
         return self.reject(claim, f"no route {claim.subject} is registered", sugg)
 
     def suggest(self, claim: Claim, ctx: Context) -> list[str]:
@@ -393,8 +467,18 @@ class RoutesFastAPIOracle(BaseOracle):
                 for pre in _prefix_chains(includes, routers, (file, router), depth=0):
                     fulls.add(None if pre is None else pre + prefix + path)
             for full in sorted(fulls, key=lambda x: (x is None, x or "")):
-                out.append(_Route(file, int(line), str(method), path, str(handler), str(hkind),
-                                  str(style), full))
+                out.append(
+                    _Route(
+                        file,
+                        int(line),
+                        str(method),
+                        path,
+                        str(handler),
+                        str(hkind),
+                        str(style),
+                        full,
+                    )
+                )
         return sorted(out, key=lambda r: (r.method, r.full or "", r.path, r.file, r.line))
 
 
@@ -436,9 +520,15 @@ def _prefix_chains(
                 out.append(None)
             else:
                 parent_prefix = routers.get((file, parent_var), ("", ""))[1]
-                out.append(chain + (parent_prefix if routers.get((file, parent_var),
-                                                                 ("", ""))[0] == "router"
-                                    else "") + prefix)
+                out.append(
+                    chain
+                    + (
+                        parent_prefix
+                        if routers.get((file, parent_var), ("", ""))[0] == "router"
+                        else ""
+                    )
+                    + prefix
+                )
     return out or [None]
 
 
@@ -455,8 +545,9 @@ def _params_match(a: str, b: str) -> bool:
     pa, pb = a.split("/"), b.split("/")
     if len(pa) != len(pb):
         return False
-    return all(x == y or (x.startswith("{") and y.startswith("{")) for x, y in zip(pa, pb,
-                                                                                   strict=True))
+    return all(
+        x == y or (x.startswith("{") and y.startswith("{")) for x, y in zip(pa, pb, strict=True)
+    )
 
 
 # --- symbols helpers ---------------------------------------------------------------------------
@@ -571,8 +662,9 @@ def _scan_python(text: str) -> _Scan | None:
     return scan
 
 
-def _decorator_route(dec: ast.expr, fn: ast.FunctionDef | ast.AsyncFunctionDef,
-                     scan: _Scan) -> None:
+def _decorator_route(
+    dec: ast.expr, fn: ast.FunctionDef | ast.AsyncFunctionDef, scan: _Scan
+) -> None:
     if not isinstance(dec, ast.Call) or not isinstance(dec.func, ast.Attribute):
         return
     router = _dotted(dec.func.value)
@@ -600,8 +692,9 @@ def _call_route(node: ast.Call, scan: _Scan) -> None:
             return
         if func.attr in _ADD_ROUTE:
             path = _path_arg(node)
-            endpoint = node.args[1] if len(node.args) > 1 else _kw(node, "endpoint") or _kw(
-                node, "route")
+            endpoint = (
+                node.args[1] if len(node.args) > 1 else _kw(node, "endpoint") or _kw(node, "route")
+            )
             if endpoint is None:
                 return
             handler, hkind = _endpoint(endpoint)
@@ -614,10 +707,14 @@ def _call_route(node: ast.Call, scan: _Scan) -> None:
                 return
             text, ckind = _endpoint(child)
             prefix_node = _kw(node, "prefix")
-            prefix = _kw_str(node, "prefix") if prefix_node is None or isinstance(
-                prefix_node, ast.Constant) else "?"
-            scan.includes.append((node.lineno, router, text if ckind != "dynamic" else
-                                  f"<{text}>", prefix))
+            prefix = (
+                _kw_str(node, "prefix")
+                if prefix_node is None or isinstance(prefix_node, ast.Constant)
+                else "?"
+            )
+            scan.includes.append(
+                (node.lineno, router, text if ckind != "dynamic" else f"<{text}>", prefix)
+            )
     elif isinstance(func, ast.Name) and func.id in _ROUTE_CLASSES:
         path = _path_arg(node)
         endpoint = node.args[1] if len(node.args) > 1 else _kw(node, "endpoint")
@@ -661,8 +758,7 @@ def _path_arg(call: ast.Call) -> str:
 
 
 def _first_str(call: ast.Call) -> str | None:
-    if call.args and isinstance(call.args[0], ast.Constant) and isinstance(
-            call.args[0].value, str):
+    if call.args and isinstance(call.args[0], ast.Constant) and isinstance(call.args[0].value, str):
         return call.args[0].value
     return None
 
@@ -684,8 +780,11 @@ def _kw_str(call: ast.Call, name: str) -> str:
 def _kw_methods(call: ast.Call) -> list[str]:
     node = _kw(call, "methods")
     if isinstance(node, ast.List | ast.Tuple | ast.Set):
-        out = [e.value.upper() for e in node.elts if isinstance(e, ast.Constant)
-               and isinstance(e.value, str)]
+        out = [
+            e.value.upper()
+            for e in node.elts
+            if isinstance(e, ast.Constant) and isinstance(e.value, str)
+        ]
         return out or ["?"]
     return ["?"] if node is not None else []
 
@@ -697,28 +796,59 @@ def _extract_regex(region: Region) -> list[Claim]:
         m = _RX_ADD.search(text)
         if m:
             handler = m.group(4).strip()
-            hkind = "dynamic" if not re.fullmatch(r"[\w.]+", handler) else (
-                "attribute" if "." in handler else "name")
-            claims.append(Claim("route_handler", f"GET {m.group(3)}",
-                                Location(region.file, lineno),
-                                {"handler": handler, "handler_kind": hkind, "style": m.group(2),
-                                 "router": m.group(1)}, hard=hkind != "dynamic"))
+            hkind = (
+                "dynamic"
+                if not re.fullmatch(r"[\w.]+", handler)
+                else ("attribute" if "." in handler else "name")
+            )
+            claims.append(
+                Claim(
+                    "route_handler",
+                    f"GET {m.group(3)}",
+                    Location(region.file, lineno),
+                    {
+                        "handler": handler,
+                        "handler_kind": hkind,
+                        "style": m.group(2),
+                        "router": m.group(1),
+                    },
+                    hard=hkind != "dynamic",
+                )
+            )
             continue
         m = _RX_INC.search(text)
         if m:
             child = m.group(2).strip()
-            ckind = "dynamic" if not re.fullmatch(r"[\w.]+", child) else (
-                "attribute" if "." in child else "name")
-            claims.append(Claim("router_include", child, Location(region.file, lineno),
-                                {"parent": m.group(1), "child_kind": ckind, "prefix": ""},
-                                hard=ckind != "dynamic"))
+            ckind = (
+                "dynamic"
+                if not re.fullmatch(r"[\w.]+", child)
+                else ("attribute" if "." in child else "name")
+            )
+            claims.append(
+                Claim(
+                    "router_include",
+                    child,
+                    Location(region.file, lineno),
+                    {"parent": m.group(1), "child_kind": ckind, "prefix": ""},
+                    hard=ckind != "dynamic",
+                )
+            )
             continue
         m = _RX_DEC.match(text)
         if m:
-            claims.append(Claim("route_handler", f"{m.group(2).upper()} {m.group(3)}",
-                                Location(region.file, lineno),
-                                {"handler": "?", "handler_kind": "name", "style": "decorator",
-                                 "router": m.group(1)}))
+            claims.append(
+                Claim(
+                    "route_handler",
+                    f"{m.group(2).upper()} {m.group(3)}",
+                    Location(region.file, lineno),
+                    {
+                        "handler": "?",
+                        "handler_kind": "name",
+                        "style": "decorator",
+                        "router": m.group(1),
+                    },
+                )
+            )
     return claims
 
 
@@ -727,10 +857,17 @@ def describe_routes(ctx: Context) -> list[dict[str, Any]]:
     oracle = RoutesFastAPIOracle()
     if not oracle._built(ctx):
         return []
-    return [{"method": r.method, "path": r.full or f"?{r.path}", "handler": r.handler,
-             "file": r.file, "line": r.line} for r in oracle._route_table(ctx)]
+    return [
+        {
+            "method": r.method,
+            "path": r.full or f"?{r.path}",
+            "handler": r.handler,
+            "file": r.file,
+            "line": r.line,
+        }
+        for r in oracle._route_table(ctx)
+    ]
 
 
 def register(api: OracleAPI) -> None:
     api.register_oracle(RoutesFastAPIOracle())
-

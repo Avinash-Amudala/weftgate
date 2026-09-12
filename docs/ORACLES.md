@@ -22,13 +22,13 @@ finds it through the `weft.oracles` entry point or a dotted path in `weft.toml`.
 
 ```python
 class Oracle(Protocol):
-    name: str                      # unique, e.g. "config_keys"
-    kinds: tuple[str, ...]         # claim kinds it handles, e.g. ("config_key",)
-    version: str                   # bump when the index layout changes: forces a rebuild
+    name: str  # unique, e.g. "config_keys"
+    kinds: tuple[str, ...]  # claim kinds it handles, e.g. ("config_key",)
+    version: str  # bump when the index layout changes: forces a rebuild
 
     def extract(self, change: Change, ctx: Context) -> list[Claim]: ...
     def check(self, claim: Claim, ctx: Context) -> Finding: ...
-    def build(self, ctx: Context) -> None: ...                  # optional
+    def build(self, ctx: Context) -> None: ...  # optional
     def sync(self, ctx: Context, since: str | None) -> None: ...  # optional
     def suggest(self, claim: Claim, ctx: Context) -> list[str]: ...  # optional
 ```

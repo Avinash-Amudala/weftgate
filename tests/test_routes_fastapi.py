@@ -12,7 +12,7 @@ from weft.oracles.routes_fastapi import RoutesFastAPIOracle, describe_routes
 from weft.store import Store
 from weft.types import Claim, Level, Location
 
-MAIN = '''\
+MAIN = """\
 from fastapi import FastAPI
 from app.users import router as users_router
 from app import orders
@@ -30,9 +30,9 @@ async def index():
 
 app.add_api_route("/health", health)
 app.add_api_route("/metrics", metrics, methods=["GET", "HEAD"])
-'''
+"""
 
-USERS = '''\
+USERS = """\
 from fastapi import APIRouter
 
 router = APIRouter(prefix="/users")
@@ -46,9 +46,9 @@ async def get_user(user_id: int):
 @router.post("")
 async def create_user():
     return {}
-'''
+"""
 
-ORDERS = '''\
+ORDERS = """\
 from fastapi import APIRouter
 
 router = APIRouter()
@@ -61,7 +61,7 @@ def create_order():
 
 def helper():
     pass
-'''
+"""
 
 HANDLERS = "async def health():\n    return 'ok'\n\n\nasync def metrics():\n    return {}\n"
 
@@ -165,7 +165,8 @@ def test_include_router_edges(tmp_path):
     assert res[("router_include", "starry")].level is Level.REVIEW
     # Without the star import, an unbound name is a proven absence.
     res = _check(
-        root, "from fastapi import FastAPI\napp = FastAPI()\napp.include_router(ghost_router)\n",
+        root,
+        "from fastapi import FastAPI\napp = FastAPI()\napp.include_router(ghost_router)\n",
         ctx=ctx,
     )
     assert res[("router_include", "ghost_router")].level is Level.REJECT
@@ -174,8 +175,11 @@ def test_include_router_edges(tmp_path):
 
 def test_decorator_on_unbound_router_rejects(tmp_path):
     root = _repo(tmp_path)
-    res = _check(root, "from fastapi import APIRouter\nrouter = APIRouter()\n\n"
-                       "@rooter.get('/x')\ndef x():\n    pass\n")
+    res = _check(
+        root,
+        "from fastapi import APIRouter\nrouter = APIRouter()\n\n"
+        "@rooter.get('/x')\ndef x():\n    pass\n",
+    )
     f = res[("route_handler", "GET /x")]
     assert f.level is Level.REJECT and f.suggestions == ("router",)
 
@@ -191,8 +195,9 @@ def test_claim_mode_route_table_with_prefixes(tmp_path):
     assert table[("GET", "/")] == "index" and table[("HEAD", "/metrics")] == "metrics"
 
     def claim(subject, **attrs):
-        return oracle.check(Claim("route_handler", subject, Location(""), attrs,
-                                  source="assertion"), ctx)
+        return oracle.check(
+            Claim("route_handler", subject, Location(""), attrs, source="assertion"), ctx
+        )
 
     assert claim("POST /api/users").level is Level.ACCEPT
     assert claim("GET /api/users/{id}").level is Level.ACCEPT  # param names may differ
@@ -204,19 +209,28 @@ def test_claim_mode_route_table_with_prefixes(tmp_path):
     assert missing.level is Level.REJECT and missing.suggestions[0] == "POST /api/users"
     assert claim("DELETE /api/users/{id}").level is Level.REJECT
     assert claim("ANY /health").level is Level.ACCEPT
-    parsed = claims_from_json([{"kind": "route", "method": "post", "path": "/api/orders",
-                                "handler": "create_order"}])
+    parsed = claims_from_json(
+        [{"kind": "route", "method": "post", "path": "/api/orders", "handler": "create_order"}]
+    )
     assert oracle.check(parsed[0], ctx).level is Level.ACCEPT
     ctx.store.close()
 
 
 def test_claim_mode_unresolved_prefix_reviews(tmp_path):
     root = str(tmp_path / "repo")
-    write(root, "main.py", "from fastapi import FastAPI\nfrom items import router\n"
-                           "PREFIX = '/v1'\napp = FastAPI()\n"
-                           "app.include_router(router, prefix=PREFIX)\n")
-    write(root, "items.py", "from fastapi import APIRouter\nrouter = APIRouter()\n\n"
-                            "@router.get('/items')\ndef items():\n    return []\n")
+    write(
+        root,
+        "main.py",
+        "from fastapi import FastAPI\nfrom items import router\n"
+        "PREFIX = '/v1'\napp = FastAPI()\n"
+        "app.include_router(router, prefix=PREFIX)\n",
+    )
+    write(
+        root,
+        "items.py",
+        "from fastapi import APIRouter\nrouter = APIRouter()\n\n"
+        "@router.get('/items')\ndef items():\n    return []\n",
+    )
     ctx = _ctx(root)
     oracle = RoutesFastAPIOracle()
     f = oracle.check(Claim("route_handler", "GET /v1/items", Location(""), source="assertion"), ctx)
@@ -248,8 +262,10 @@ def test_diff_fragment_uses_the_file_on_disk(tmp_path):
     ctx = _ctx(root)
     oracle = RoutesFastAPIOracle()
     write(root, "app/main.py", MAIN + "app.add_api_route('/late', helth)\n")
-    diff = ("--- a/app/main.py\n+++ b/app/main.py\n@@ -17,0 +18 @@\n"
-            "+app.add_api_route('/late', helth)\n")
+    diff = (
+        "--- a/app/main.py\n+++ b/app/main.py\n@@ -17,0 +18 @@\n"
+        "+app.add_api_route('/late', helth)\n"
+    )
     change = Change.from_unified_diff(diff)
     res = {f.claim.subject: f for f in (oracle.check(c, ctx) for c in oracle.extract(change, ctx))}
     assert list(res) == ["GET /late"]

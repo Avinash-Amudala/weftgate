@@ -159,9 +159,7 @@ class Change:
         return change
 
     @classmethod
-    def from_git(
-        cls, repo_root: str, staged: bool = False, rev_range: str | None = None
-    ) -> Change:
+    def from_git(cls, repo_root: str, staged: bool = False, rev_range: str | None = None) -> Change:
         """The working-tree diff (or ``--staged``, or a revision range) as a Change."""
         args = ["git", "diff", "--no-color", "--no-ext-diff", "--no-renames", "-U0"]
         if rev_range:
@@ -176,7 +174,10 @@ class Change:
             # Untracked files are new content too: include them whole.
             listing = subprocess.run(
                 ["git", "ls-files", "--others", "--exclude-standard", "-z"],
-                cwd=repo_root, capture_output=True, text=True, check=False,
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             for rel in sorted(p for p in listing.stdout.split("\0") if p):
                 full = os.path.join(repo_root, rel)
@@ -195,8 +196,11 @@ class Change:
         if os.path.isdir(arg):
             change = cls()
             for dirpath, dirnames, filenames in os.walk(arg):
-                dirnames[:] = sorted(d for d in dirnames if not d.startswith(".")
-                                     and d not in ("node_modules", "__pycache__", "venv"))
+                dirnames[:] = sorted(
+                    d
+                    for d in dirnames
+                    if not d.startswith(".") and d not in ("node_modules", "__pycache__", "venv")
+                )
                 for name in sorted(filenames):
                     full = os.path.join(dirpath, name)
                     if _looks_texty(full):

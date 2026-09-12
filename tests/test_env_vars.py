@@ -136,22 +136,51 @@ def test_declaration_sources_in_code_and_containers(tmp_path):
         "class Settings(BaseSettings):\n    redis_url: str = 'redis://'\n    debug: bool = False\n"
         "    model_config = {'env_prefix': 'APP_'}\n",
     )
-    write(root, "docker-compose.yml", "services:\n  web:\n    environment:\n      - COMPOSE_A=1\n"
-                                      "      COMPOSE_B: 2\n    ports:\n      - '80:80'\n")
+    write(
+        root,
+        "docker-compose.yml",
+        "services:\n  web:\n    environment:\n      - COMPOSE_A=1\n"
+        "      COMPOSE_B: 2\n    ports:\n      - '80:80'\n",
+    )
     write(root, "Dockerfile", "FROM python:3\nENV DOCK_A=1 DOCK_B=2\nARG DOCK_C\n")
     write(root, "web.js", "process.env.JS_DEFAULT = process.env.JS_DEFAULT || 'x';\n")
     res = _check(
         root,
-        "import os\n" + "\n".join(
+        "import os\n"
+        + "\n".join(
             f"v{i} = os.environ['{n}']"
             for i, n in enumerate(
-                ["SET_DEFAULT", "ASSIGNED", "TIMEOUT", "APP_REDIS_URL", "APP_DEBUG", "COMPOSE_A",
-                 "COMPOSE_B", "DOCK_A", "DOCK_B", "DOCK_C", "JS_DEFAULT", "REDIS_URL"]
+                [
+                    "SET_DEFAULT",
+                    "ASSIGNED",
+                    "TIMEOUT",
+                    "APP_REDIS_URL",
+                    "APP_DEBUG",
+                    "COMPOSE_A",
+                    "COMPOSE_B",
+                    "DOCK_A",
+                    "DOCK_B",
+                    "DOCK_C",
+                    "JS_DEFAULT",
+                    "REDIS_URL",
+                ]
             )
-        ) + "\n",
+        )
+        + "\n",
     )
-    for name in ("SET_DEFAULT", "ASSIGNED", "TIMEOUT", "APP_REDIS_URL", "APP_DEBUG", "COMPOSE_A",
-                 "COMPOSE_B", "DOCK_A", "DOCK_B", "DOCK_C", "JS_DEFAULT"):
+    for name in (
+        "SET_DEFAULT",
+        "ASSIGNED",
+        "TIMEOUT",
+        "APP_REDIS_URL",
+        "APP_DEBUG",
+        "COMPOSE_A",
+        "COMPOSE_B",
+        "DOCK_A",
+        "DOCK_B",
+        "DOCK_C",
+        "JS_DEFAULT",
+    ):
         assert res[name].level is Level.ACCEPT, name
     assert res["REDIS_URL"].level is Level.REJECT
     assert "APP_REDIS_URL" in res["REDIS_URL"].suggestions
@@ -162,8 +191,9 @@ def test_env_declared_in_treats_reads_as_the_contract(tmp_path):
     write(root, "config/settings.py", "import os\nSECRET = os.environ['SECRET_KEY']\n")
     write(root, ".env", "LOCAL_ONLY=1\n")
     cfg = Config(env_declared_in=["config/settings.py", ".env"])
-    res = _check(root, "import os\nx = os.environ['SECRET_KEY']\ny = os.environ['LOCAL_ONLY']\n",
-                 config=cfg)
+    res = _check(
+        root, "import os\nx = os.environ['SECRET_KEY']\ny = os.environ['LOCAL_ONLY']\n", config=cfg
+    )
     assert res["SECRET_KEY"].level is Level.ACCEPT
     assert res["LOCAL_ONLY"].level is Level.ACCEPT
     # Without the config, a read in an ordinary module declares nothing.

@@ -251,10 +251,15 @@ def _dedupe(findings: list[Finding]) -> list[Finding]:
 
 
 def _crash_finding(name: str, files: list[str], stage: str, exc: BaseException) -> Finding:
-    claim = Claim(kind=f"{name}:{stage}", subject="<oracle error>", location=Location(
-        files[0] if files else ""), hard=False)
-    return Finding(claim, Level.UNVERIFIABLE, f"oracle {name!r} crashed during {stage}: "
-                   f"{_short(exc)}", name)
+    claim = Claim(
+        kind=f"{name}:{stage}",
+        subject="<oracle error>",
+        location=Location(files[0] if files else ""),
+        hard=False,
+    )
+    return Finding(
+        claim, Level.UNVERIFIABLE, f"oracle {name!r} crashed during {stage}: {_short(exc)}", name
+    )
 
 
 def _short(exc: BaseException) -> str:
@@ -282,12 +287,20 @@ def claims_from_json(data: Any) -> list[Claim]:
 
 
 _KIND_ALIASES = {
-    "env": "env_var", "env_var": "env_var", "environment": "env_var",
-    "route": "route_handler", "route_handler": "route_handler", "endpoint": "route_handler",
-    "import": "import", "package": "import", "dependency": "import",
+    "env": "env_var",
+    "env_var": "env_var",
+    "environment": "env_var",
+    "route": "route_handler",
+    "route_handler": "route_handler",
+    "endpoint": "route_handler",
+    "import": "import",
+    "package": "import",
+    "dependency": "import",
     "router_include": "router_include",
-    "tests_pass": "tests_pass", "tests": "tests_pass",
-    "endpoint_status": "endpoint_status", "bug_fixed": "bug_fixed",
+    "tests_pass": "tests_pass",
+    "tests": "tests_pass",
+    "endpoint_status": "endpoint_status",
+    "bug_fixed": "bug_fixed",
 }
 
 
@@ -304,8 +317,18 @@ def _claim_from_dict(raw: dict[str, Any], index: int) -> Claim:
         if not path:
             raise ValueError(f"claim #{index}: route claims need 'subject' or 'method'+'path'")
         subject = f"{method} {path}"
-    for key in ("handler", "method", "path", "command", "url", "status", "signature", "evidence",
-                "cwd", "timeout"):
+    for key in (
+        "handler",
+        "method",
+        "path",
+        "command",
+        "url",
+        "status",
+        "signature",
+        "evidence",
+        "cwd",
+        "timeout",
+    ):
         if key in raw and key not in attrs:
             attrs[key] = raw[key]
     if kind in honesty.KINDS and not subject:
@@ -340,9 +363,13 @@ def check_claims(
 def index(repo_root: str, rebuild: bool = False, store_path: str | None = None) -> dict[str, Any]:
     with Session(repo_root, store_path=store_path) as s:
         report = s.sync(force_rebuild=rebuild)
-        return {"repo_root": s.store.repo_root, "store": s.store.path,
-                "commit": s.ctx.git_commit, "oracles": report,
-                "sync_errors": dict(s.sync_errors)}
+        return {
+            "repo_root": s.store.repo_root,
+            "store": s.store.path,
+            "commit": s.ctx.git_commit,
+            "oracles": report,
+            "sync_errors": dict(s.sync_errors),
+        }
 
 
 def status(repo_root: str, store_path: str | None = None) -> dict[str, Any]:

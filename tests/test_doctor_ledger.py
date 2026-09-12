@@ -31,8 +31,10 @@ def test_doctor_on_the_fixture_and_on_an_empty_dir(tmp_path, capsys):
     write(empty, "weft.toml", '[weft]\noracles = ["env_vars", "imports_lockfile"]\n')
     report = doctor.run(empty, store_path=str(tmp_path / "e.sqlite"))
     names = {c["name"]: c for c in report["checks"]}
-    assert names["env declarations"]["ok"] is False and "review, not reject" in names[
-        "env declarations"]["hint"]
+    assert (
+        names["env declarations"]["ok"] is False
+        and "review, not reject" in names["env declarations"]["hint"]
+    )
     assert "lockfile" in names["dependency sources"]["hint"]
     assert cli_main(["--repo", empty, "--format", "json", "doctor"]) == 1
     assert json.loads(capsys.readouterr().out)["ok"] is False
@@ -74,14 +76,20 @@ def test_index_show_dumps(tmp_path, capsys):
     os.makedirs(root)
     write_fixture(root)
     store = str(tmp_path / "i.sqlite")
-    assert cli_main(["--repo", root, "--store", store, "--format", "json", "index", "--show",
-                     "env"]) == 0
+    assert (
+        cli_main(["--repo", root, "--store", store, "--format", "json", "index", "--show", "env"])
+        == 0
+    )
     env = json.loads(capsys.readouterr().out)
     assert env["DATABASE_URL"] == [".env.example"]
     assert cli_main(["--repo", root, "--store", store, "index", "--show", "routes"]) == 0
     out = capsys.readouterr().out
     assert "POST      /api/users" in out and "create_user" in out
-    assert cli_main(["--repo", root, "--store", store, "--format", "json", "index", "--show",
-                     "imports"]) == 0
+    assert (
+        cli_main(
+            ["--repo", root, "--store", store, "--format", "json", "index", "--show", "imports"]
+        )
+        == 0
+    )
     imports = json.loads(capsys.readouterr().out)
     assert imports["python"]["fastapi"] == ["requirements.txt"]

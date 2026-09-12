@@ -19,8 +19,25 @@ from ..gate import Session, blocks
 from ..types import Finding, GateResult, Level
 
 SOURCE_SUFFIXES = (
-    ".py", ".pyi", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".mts", ".cts", ".vue",
-    ".svelte", ".rb", ".go", ".rs", ".java", ".kt", ".cs", ".php",
+    ".py",
+    ".pyi",
+    ".js",
+    ".mjs",
+    ".cjs",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".mts",
+    ".cts",
+    ".vue",
+    ".svelte",
+    ".rb",
+    ".go",
+    ".rs",
+    ".java",
+    ".kt",
+    ".cs",
+    ".php",
 )
 _MAX_BYTES = 2_000_000
 
@@ -83,8 +100,11 @@ def run(
                 else:
                     findings.append(f)
         extra: dict[str, Any] = {
-            "mode": "audit", "files": len(files), "accepted": accepts,
-            "oracles": list(s.oracles), "block_on": s.config.block_on,
+            "mode": "audit",
+            "files": len(files),
+            "accepted": accepts,
+            "oracles": list(s.oracles),
+            "block_on": s.config.block_on,
             "commit": s.ctx.git_commit,
         }
         if s.sync_errors:
@@ -131,16 +151,21 @@ def render_text(report: AuditReport) -> str:
         lines = [head + "No broken wires found."]
     else:
         rejects = sum(1 for f in broken if f.level is Level.REJECT)
-        lines = [head + f"{rejects} broken wire{'s' if rejects != 1 else ''} found, "
-                        f"{len(broken) - rejects} to review:", ""]
+        lines = [
+            head + f"{rejects} broken wire{'s' if rejects != 1 else ''} found, "
+            f"{len(broken) - rejects} to review:",
+            "",
+        ]
         for f in broken:
             tip = f"   (did you mean {', '.join(f.suggestions)}?)" if f.suggestions else ""
             lines.append(f"  {f.level.value.upper():12} {str(f.claim.location):32} {f.reason}{tip}")
     lines.append("")
     for name, counts in sorted(report.per_oracle.items()):
-        lines.append(f"  {name:18} accept {counts.get('accept', 0):5}  review "
-                     f"{counts.get('review', 0):4}  reject {counts.get('reject', 0):4}  "
-                     f"unverifiable {counts.get('unverifiable', 0):4}")
+        lines.append(
+            f"  {name:18} accept {counts.get('accept', 0):5}  review "
+            f"{counts.get('review', 0):4}  reject {counts.get('reject', 0):4}  "
+            f"unverifiable {counts.get('unverifiable', 0):4}"
+        )
     for name, err in sorted((res.stats.get("sync_errors") or {}).items()):
         lines.append(f"  ! {name}: {err}")
     if report.label != "field":

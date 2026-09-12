@@ -89,8 +89,10 @@ def summary(events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         "blocks": blocks,
         "broken_wires": rejects,
         "estimated_tokens_saved": blocks * ROUND_TRIP_TOKENS,
-        "estimate_note": (f"assumes one avoided retry loop of about {ROUND_TRIP_TOKENS} tokens "
-                          f"per blocked change; an estimate, not a measurement"),
+        "estimate_note": (
+            f"assumes one avoided retry loop of about {ROUND_TRIP_TOKENS} tokens "
+            f"per blocked change; an estimate, not a measurement"
+        ),
         "by_repo": dict(sorted(by_repo.items())),
         "by_oracle": dict(sorted(by_oracle.items())),
         "by_surface": dict(sorted(by_surface.items())),
@@ -101,16 +103,20 @@ def summary(events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
 
 def render_text(info: dict[str, Any]) -> str:
     if not info["blocks"]:
-        return (f"ledger: no blocked changes recorded yet ({info['path']})\n"
-                f"every reject weft raises before code ships is counted here")
+        return (
+            f"ledger: no blocked changes recorded yet ({info['path']})\n"
+            f"every reject weft raises before code ships is counted here"
+        )
     lines = [
         f"ledger: {info['blocks']} blocked change(s), {info['broken_wires']} broken wire(s) "
         f"caught before they shipped",
-        f"  estimated tokens saved: ~{info['estimated_tokens_saved']:,}  "
-        f"({info['estimate_note']})",
+        f"  estimated tokens saved: ~{info['estimated_tokens_saved']:,}  ({info['estimate_note']})",
     ]
-    for label, key in (("by repo", "by_repo"), ("by oracle", "by_oracle"),
-                       ("by surface", "by_surface")):
+    for label, key in (
+        ("by repo", "by_repo"),
+        ("by oracle", "by_oracle"),
+        ("by surface", "by_surface"),
+    ):
         items = ", ".join(f"{k} {v}" for k, v in info[key].items())
         lines.append(f"  {label:10} {items}")
     lines.append(f"  file: {info['path']}")

@@ -31,7 +31,7 @@ def test_setup_writes_config_and_builds_index(tmp_path, capsys):
     # A second run keeps the existing config unless forced.
     assert setup.run(root) == 0
     assert "keep" in capsys.readouterr().out
-    write(root, "weft.toml", "[weft]\noracles = [\"env_vars\"]\n")
+    write(root, "weft.toml", '[weft]\noracles = ["env_vars"]\n')
     assert setup.run(root, force=True) == 0
     assert "routes_fastapi" in open(os.path.join(root, "weft.toml")).read()
 
@@ -40,11 +40,20 @@ def test_setup_hooks_merge_without_clobbering(tmp_path, capsys):
     root = _repo(tmp_path)
     if have_git():
         git_init(root)
-    write(root, ".claude/settings.json", json.dumps({
-        "permissions": {"allow": ["Bash(ls)"]},
-        "hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command",
-                                                                  "command": "echo hi"}]}]},
-    }))
+    write(
+        root,
+        ".claude/settings.json",
+        json.dumps(
+            {
+                "permissions": {"allow": ["Bash(ls)"]},
+                "hooks": {
+                    "PreToolUse": [
+                        {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo hi"}]}
+                    ]
+                },
+            }
+        ),
+    )
     write(root, ".mcp.json", json.dumps({"mcpServers": {"other": {"command": "x"}}}))
     assert setup.run(root, hooks=True) == 0
     settings = json.load(open(os.path.join(root, ".claude", "settings.json")))
@@ -81,19 +90,28 @@ def test_claude_hook_blocks_only_on_reject(tmp_path, capsys):
     good_code = "import os\nx = os.environ['API_KEY']\n"
     good = {"tool_name": "Write", "tool_input": {"file_path": target, "content": good_code}}
     assert hook(good) == 0 and capsys.readouterr().out == ""
-    soft = {"tool_name": "Write", "tool_input": {"file_path": target,
-                                                 "content": "import os\nx = os.environ[k]\n"}}
+    soft = {
+        "tool_name": "Write",
+        "tool_input": {"file_path": target, "content": "import os\nx = os.environ[k]\n"},
+    }
     assert hook(soft) == 0
     note = json.loads(capsys.readouterr().out)
     assert "weft notes" in note["hookSpecificOutput"]["additionalContext"]
     # Edit on an existing file reconstructs the new content.
     write(root, "app/new.py", "import os\nx = os.environ['API_KEY']\n")
-    edit = {"tool_name": "Edit", "tool_input": {"file_path": target, "old_string": "API_KEY",
-                                                "new_string": "API_KEYY"}}
+    edit = {
+        "tool_name": "Edit",
+        "tool_input": {"file_path": target, "old_string": "API_KEY", "new_string": "API_KEYY"},
+    }
     assert hook(edit) == 2
     capsys.readouterr()
-    multi = {"tool_name": "MultiEdit", "tool_input": {"file_path": target, "edits": [
-        {"old_string": "API_KEY", "new_string": "REDIS_URL"}]}}
+    multi = {
+        "tool_name": "MultiEdit",
+        "tool_input": {
+            "file_path": target,
+            "edits": [{"old_string": "API_KEY", "new_string": "REDIS_URL"}],
+        },
+    }
     assert hook(multi) == 0
     # Never block on garbage, unknown tools, or missing paths.
     assert setup.claude_hook(root, "not json", store_path=store) == 0
@@ -105,13 +123,31 @@ def test_claude_hook_blocks_only_on_reject(tmp_path, capsys):
 def test_reconstruct_content_shapes(tmp_path):
     p = write(str(tmp_path), "f.py", "a = 1\nb = 2\n")
     assert setup.reconstruct_content("Write", {"file_path": p, "content": "z"}) == "z"
-    assert setup.reconstruct_content("Edit", {"file_path": p, "old_string": "b = 2",
-                                              "new_string": "b = 3"}) == "a = 1\nb = 3\n"
-    assert setup.reconstruct_content("Edit", {"file_path": p + ".nope", "old_string": "",
-                                              "new_string": "new"}) == "new"
-    assert setup.reconstruct_content("MultiEdit", {"file_path": p, "edits": [
-        {"old_string": "1", "new_string": "9", "replace_all": True},
-        {"old_string": "", "new_string": "c = 3\n"}]}) == "a = 9\nb = 2\nc = 3\n"
+    assert (
+        setup.reconstruct_content(
+            "Edit", {"file_path": p, "old_string": "b = 2", "new_string": "b = 3"}
+        )
+        == "a = 1\nb = 3\n"
+    )
+    assert (
+        setup.reconstruct_content(
+            "Edit", {"file_path": p + ".nope", "old_string": "", "new_string": "new"}
+        )
+        == "new"
+    )
+    assert (
+        setup.reconstruct_content(
+            "MultiEdit",
+            {
+                "file_path": p,
+                "edits": [
+                    {"old_string": "1", "new_string": "9", "replace_all": True},
+                    {"old_string": "", "new_string": "c = 3\n"},
+                ],
+            },
+        )
+        == "a = 9\nb = 2\nc = 3\n"
+    )
     assert setup.reconstruct_content("Bash", {"file_path": p}) is None
     assert setup.reconstruct_content("Write", {"file_path": p}) is None
 
@@ -122,8 +158,7 @@ def test_setup_agents_write_project_configs_and_print_snippets(tmp_path, capsys)
     assert cli_main(["--repo", root, "--format", "json", "setup", "--agents", "all"]) == 0
     summary = json.loads(capsys.readouterr().out)
     assert set(summary["snippets"]) == {"codex", "windsurf", "claude-desktop"}
-    assert json.load(open(os.path.join(root, ".mcp.json")))["mcpServers"]["weft"]["args"] == [
-        "mcp"]
+    assert json.load(open(os.path.join(root, ".mcp.json")))["mcpServers"]["weft"]["args"] == ["mcp"]
     assert "weft" in json.load(open(os.path.join(root, ".cursor", "mcp.json")))["mcpServers"]
     vscode = json.load(open(os.path.join(root, ".vscode", "mcp.json")))["servers"]
     assert set(vscode) == {"other", "weft"}

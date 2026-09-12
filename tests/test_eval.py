@@ -56,13 +56,15 @@ def test_mutate_fixture_is_deterministic_and_fully_blocked():
     b = mutate.run(None, seed=13)
     assert a.to_dict() == b.to_dict()
     assert a.label == "upper bound"
-    assert a.total >= 9 and set(a.per_oracle) == {"env_vars", "imports_lockfile",
-                                                   "routes_fastapi"}
+    assert a.total >= 9 and set(a.per_oracle) == {"env_vars", "imports_lockfile", "routes_fastapi"}
     assert a.detected == a.blocked == a.suggested == a.total, mutate.render_text(a)
     assert a.misses == 0
     ops = {m["op"] for m in a.mutations}
-    assert {"typo_env", "typo_import"} <= ops and ops & {"typo_handler", "rename_def",
-                                                        "typo_router"}
+    assert {"typo_env", "typo_import"} <= ops and ops & {
+        "typo_handler",
+        "rename_def",
+        "typo_router",
+    }
     other = mutate.run(None, seed=7)
     assert other.total == a.total and other.misses == 0
     assert [m["mutated"] for m in other.mutations] != [m["mutated"] for m in a.mutations]
@@ -77,8 +79,9 @@ def test_mutate_on_a_copied_repo_never_touches_it(tmp_path, capsys):
     report = mutate.run(root, seed=3, count=2)
     assert report.label == "field" and report.total == 6 and report.misses == 0
     assert {p: open(os.path.join(root, p)).read() for p in before} == before
-    code = cli_main(["--repo", root, "--format", "json", "eval", "mutate", "--seed", "3",
-                     "--count", "2"])
+    code = cli_main(
+        ["--repo", root, "--format", "json", "eval", "mutate", "--seed", "3", "--count", "2"]
+    )
     assert code == 0
     assert json.loads(capsys.readouterr().out)["total"] == 6
     assert cli_main(["--format", "json", "eval", "mutate", "--fixture", "--seed", "13"]) == 0

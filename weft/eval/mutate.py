@@ -148,8 +148,14 @@ def _candidates(s: Session) -> dict[str, list[_Candidate]]:
                 continue
             if not _eligible(f):
                 continue
-            c = _Candidate(f.oracle, f.claim.kind, f.claim.location.file, f.claim.location.line,
-                           f.claim.subject, dict(f.claim.attrs))
+            c = _Candidate(
+                f.oracle,
+                f.claim.kind,
+                f.claim.location.file,
+                f.claim.location.line,
+                f.claim.subject,
+                dict(f.claim.attrs),
+            )
             out.setdefault(f.oracle, []).append(c)
     deduped: dict[str, list[_Candidate]] = {}
     for oracle, cands in out.items():
@@ -167,8 +173,11 @@ def _eligible(f: Finding) -> bool:
     match f.oracle:
         case "env_vars":
             # A read with an inline default is never a broken wire, so it is no candidate.
-            return (f.reason.startswith("declared in") and f.claim.subject.isidentifier()
-                    and not f.claim.attrs.get("default"))
+            return (
+                f.reason.startswith("declared in")
+                and f.claim.subject.isidentifier()
+                and not f.claim.attrs.get("default")
+            )
         case "imports_lockfile":
             if not f.reason.startswith("in ") or f.claim.attrs.get("optional"):
                 return False  # an optional (try/except) import is never a broken wire
@@ -184,8 +193,14 @@ def _eligible(f: Finding) -> bool:
                 return str(f.claim.attrs.get("child_kind")) == "name"
             style = str(f.claim.attrs.get("style"))
             hk = str(f.claim.attrs.get("handler_kind"))
-            return style != "decorator" and hk == "name" and "defined in this file" in f.reason \
-                or style != "decorator" and hk == "name" and "resolves to" in f.reason
+            return (
+                style != "decorator"
+                and hk == "name"
+                and "defined in this file" in f.reason
+                or style != "decorator"
+                and hk == "name"
+                and "resolves to" in f.reason
+            )
     return False
 
 
@@ -199,18 +214,18 @@ def _typo(name: str, rng: random.Random) -> str:
         op = rng.choice(ops)
         i = rng.randrange(len(name))
         if op == "del":
-            cand = name[:i] + name[i + 1:]
+            cand = name[:i] + name[i + 1 :]
         elif op == "swap" and len(name) > 1:
             j = min(i + 1, len(name) - 1)
             if j == i:
                 i, j = i - 1, i
-            cand = name[:i] + name[j] + name[i] + name[j + 1:]
+            cand = name[:i] + name[j] + name[i] + name[j + 1 :]
         elif op == "dup":
             cand = name[:i] + name[i] + name[i:]
         else:
             ch = rng.choice(letters)
             ch = ch.upper() if name[i].isupper() else ch
-            cand = name[:i] + ch + name[i + 1:]
+            cand = name[:i] + ch + name[i + 1 :]
         if cand != name and cand.isidentifier() and not cand[0].isdigit():
             return cand
     return name + "x"
@@ -224,7 +239,7 @@ def _typo_spec(name: str, rng: random.Random) -> str:
     i = rng.choice(letters[:-1])
     j = i + 1
     if name[j].isalnum() and name[i] != name[j]:
-        return name[:i] + name[j] + name[i] + name[j + 1:]
+        return name[:i] + name[j] + name[i] + name[j + 1 :]
     return name[:i] + name[i] + name[i:]
 
 
@@ -232,29 +247,74 @@ def _make_mutation(c: _Candidate, rng: random.Random, s: Session) -> Mutation | 
     match c.oracle:
         case "env_vars":
             mutated = _typo(c.subject, rng)
-            return Mutation("env_vars", "typo_env", c.file, c.line, c.subject, mutated, c.file,
-                            expect_suggestion=c.subject, related=mutated)
+            return Mutation(
+                "env_vars",
+                "typo_env",
+                c.file,
+                c.line,
+                c.subject,
+                mutated,
+                c.file,
+                expect_suggestion=c.subject,
+                related=mutated,
+            )
         case "imports_lockfile":
             top = str(c.attrs.get("top") or c.subject)
             mutated = _typo(top, rng) if top.isidentifier() else _typo_spec(top, rng)
-            return Mutation("imports_lockfile", "typo_import", c.file, c.line, top, mutated,
-                            c.file, expect_suggestion=top, related=mutated)
+            return Mutation(
+                "imports_lockfile",
+                "typo_import",
+                c.file,
+                c.line,
+                top,
+                mutated,
+                c.file,
+                expect_suggestion=top,
+                related=mutated,
+            )
         case "routes_fastapi":
             if c.kind == "router_include":
                 mutated = _typo(c.subject, rng)
-                return Mutation("routes_fastapi", "typo_router", c.file, c.line, c.subject,
-                                mutated, c.file, expect_suggestion=c.subject, related=mutated)
+                return Mutation(
+                    "routes_fastapi",
+                    "typo_router",
+                    c.file,
+                    c.line,
+                    c.subject,
+                    mutated,
+                    c.file,
+                    expect_suggestion=c.subject,
+                    related=mutated,
+                )
             handler = str(c.attrs.get("handler"))
             def_file = _def_file(s, c.file, handler)
             if def_file is not None and rng.random() < 0.5:
                 renamed = _typo(handler, rng)
                 line = _def_line(s, def_file, handler)
                 if line:
-                    return Mutation("routes_fastapi", "rename_def", def_file, line, handler,
-                                    renamed, c.file, expect_suggestion=renamed, related=handler)
+                    return Mutation(
+                        "routes_fastapi",
+                        "rename_def",
+                        def_file,
+                        line,
+                        handler,
+                        renamed,
+                        c.file,
+                        expect_suggestion=renamed,
+                        related=handler,
+                    )
             mutated = _typo(handler, rng)
-            return Mutation("routes_fastapi", "typo_handler", c.file, c.line, handler, mutated,
-                            c.file, expect_suggestion=handler, related=mutated)
+            return Mutation(
+                "routes_fastapi",
+                "typo_handler",
+                c.file,
+                c.line,
+                handler,
+                mutated,
+                c.file,
+                expect_suggestion=handler,
+                related=mutated,
+            )
     return None
 
 
@@ -296,8 +356,12 @@ def _apply_and_check(s: Session, m: Mutation) -> dict[str, Any]:
         if n:
             break
     if n == 0:
-        return {"detected": False, "blocked": False, "suggested": False,
-                "error": "token not found near line"}
+        return {
+            "detected": False,
+            "blocked": False,
+            "suggested": False,
+            "error": "token not found near line",
+        }
     lines[idx] = new_line
     try:
         with open(full, "w", encoding="utf-8") as fh:
@@ -314,10 +378,16 @@ def _apply_and_check(s: Session, m: Mutation) -> dict[str, Any]:
     blocked = any(f.level is Level.REJECT for f in related)
     suggested = blocked and any(
         m.expect_suggestion in sug or norm(sug) == norm(m.expect_suggestion)
-        for f in related if f.level is Level.REJECT for sug in f.suggestions
+        for f in related
+        if f.level is Level.REJECT
+        for sug in f.suggestions
     )
-    return {"detected": detected, "blocked": blocked, "suggested": suggested,
-            "findings": [f.to_dict() for f in related]}
+    return {
+        "detected": detected,
+        "blocked": blocked,
+        "suggested": suggested,
+        "findings": [f.to_dict() for f in related],
+    }
 
 
 def _patterns(m: Mutation) -> list[str]:
@@ -333,14 +403,21 @@ def _patterns(m: Mutation) -> list[str]:
 
 
 def _mentions(f: Finding, m: Mutation) -> bool:
-    hay = " ".join([f.claim.subject, f.reason, str(f.claim.attrs.get("handler", "")),
-                    str(f.claim.attrs.get("top", ""))])
+    hay = " ".join(
+        [
+            f.claim.subject,
+            f.reason,
+            str(f.claim.attrs.get("handler", "")),
+            str(f.claim.attrs.get("top", "")),
+        ]
+    )
     return re.search(rf"(?<![\w]){re.escape(m.related)}(?![\w])", hay) is not None
 
 
 def _tally(report: MutationReport, m: Mutation, outcome: dict[str, Any]) -> None:
-    per = report.per_oracle.setdefault(m.oracle, {"total": 0, "detected": 0, "blocked": 0,
-                                                  "suggested": 0, "misses": 0})
+    per = report.per_oracle.setdefault(
+        m.oracle, {"total": 0, "detected": 0, "blocked": 0, "suggested": 0, "misses": 0}
+    )
     report.total += 1
     per["total"] += 1
     if outcome["detected"]:
@@ -354,36 +431,59 @@ def _tally(report: MutationReport, m: Mutation, outcome: dict[str, Any]) -> None
         per["suggested"] += 1
     else:
         per["misses"] += 1
-    report.mutations.append({
-        "oracle": m.oracle, "op": m.op, "file": m.file, "line": m.line,
-        "original": m.original, "mutated": m.mutated, "expect_suggestion": m.expect_suggestion,
-        **{k: v for k, v in outcome.items() if k != "findings"},
-        "suggestions": sorted({s for f in outcome.get("findings", []) for s in f["suggestions"]}),
-    })
+    report.mutations.append(
+        {
+            "oracle": m.oracle,
+            "op": m.op,
+            "file": m.file,
+            "line": m.line,
+            "original": m.original,
+            "mutated": m.mutated,
+            "expect_suggestion": m.expect_suggestion,
+            **{k: v for k, v in outcome.items() if k != "findings"},
+            "suggestions": sorted(
+                {s for f in outcome.get("findings", []) for s in f["suggestions"]}
+            ),
+        }
+    )
 
 
 def _copy_repo(src: str, dst: str) -> None:
     def ignore(_dir: str, names: list[str]) -> set[str]:
-        return {n for n in names if n in IGNORED_DIRS or n.endswith(".egg-info")
-                or n.endswith((".sqlite", ".sqlite-wal", ".sqlite-shm"))}
+        return {
+            n
+            for n in names
+            if n in IGNORED_DIRS
+            or n.endswith(".egg-info")
+            or n.endswith((".sqlite", ".sqlite-wal", ".sqlite-shm"))
+        }
 
     shutil.copytree(src, dst, ignore=ignore, symlinks=True)
 
 
 def render_text(report: MutationReport) -> str:
-    lines = [f"mutation harness (seed {report.seed}): {report.total} mutations, "
-             f"{report.detected} detected, {report.blocked} blocked, "
-             f"{report.suggested} with a usable suggestion, {report.misses} misses"]
+    lines = [
+        f"mutation harness (seed {report.seed}): {report.total} mutations, "
+        f"{report.detected} detected, {report.blocked} blocked, "
+        f"{report.suggested} with a usable suggestion, {report.misses} misses"
+    ]
     for name, c in sorted(report.per_oracle.items()):
-        lines.append(f"  {name:18} total {c['total']:3}  detected {c['detected']:3}  "
-                     f"blocked {c['blocked']:3}  suggested {c['suggested']:3}  "
-                     f"misses {c['misses']:3}")
+        lines.append(
+            f"  {name:18} total {c['total']:3}  detected {c['detected']:3}  "
+            f"blocked {c['blocked']:3}  suggested {c['suggested']:3}  "
+            f"misses {c['misses']:3}"
+        )
     for m in report.mutations:
-        status = "ok  " if m["suggested"] else ("weak" if m["blocked"] else
-                                                ("soft" if m["detected"] else "MISS"))
+        status = (
+            "ok  "
+            if m["suggested"]
+            else ("weak" if m["blocked"] else ("soft" if m["detected"] else "MISS"))
+        )
         extra = f"  [{m['error']}]" if m.get("error") else ""
-        lines.append(f"  {status} {m['oracle']:16} {m['op']:13} {m['file']}:{m['line']}  "
-                     f"{m['original']} -> {m['mutated']}  suggested {m['suggestions']}{extra}")
+        lines.append(
+            f"  {status} {m['oracle']:16} {m['op']:13} {m['file']}:{m['line']}  "
+            f"{m['original']} -> {m['mutated']}  suggested {m['suggestions']}{extra}"
+        )
     if report.label != "field":
         lines.append(f"  ({report.label}: measured on the fixture the oracles were tuned on)")
     return "\n".join(lines)

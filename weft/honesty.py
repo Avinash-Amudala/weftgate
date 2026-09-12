@@ -53,11 +53,37 @@ from .types import Claim, Finding, Level, StrEnum
 KINDS = frozenset({"tests_pass", "endpoint_status", "bug_fixed"})
 
 DEFAULT_ALLOWED_COMMANDS = (
-    "pytest", "py.test", "python -m pytest", "python3 -m pytest", "python -m unittest",
-    "python3 -m unittest", "tox", "nox", "npm test", "npm run test", "pnpm test", "pnpm run test",
-    "yarn test", "npx jest", "npx vitest", "jest", "vitest", "bun test", "go test", "cargo test",
-    "make test", "mvn test", "gradle test", "./gradlew test", "dotnet test", "rspec",
-    "bundle exec rspec", "phpunit", "mix test", "swift test", "ctest",
+    "pytest",
+    "py.test",
+    "python -m pytest",
+    "python3 -m pytest",
+    "python -m unittest",
+    "python3 -m unittest",
+    "tox",
+    "nox",
+    "npm test",
+    "npm run test",
+    "pnpm test",
+    "pnpm run test",
+    "yarn test",
+    "npx jest",
+    "npx vitest",
+    "jest",
+    "vitest",
+    "bun test",
+    "go test",
+    "cargo test",
+    "make test",
+    "mvn test",
+    "gradle test",
+    "./gradlew test",
+    "dotnet test",
+    "rspec",
+    "bundle exec rspec",
+    "phpunit",
+    "mix test",
+    "swift test",
+    "ctest",
 )
 DEFAULT_ALLOWED_HOSTS = ("localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0")
 _DEFAULT_TIMEOUT = 600
@@ -100,12 +126,14 @@ class Policy:
     @classmethod
     def from_config(cls, config: Config | None, repo_root: str | None, run: bool) -> Policy:
         extra = config.oracle_config("honesty") if config is not None else {}
-        cmds = tuple(DEFAULT_ALLOWED_COMMANDS) + tuple(str(c) for c in extra.get(
-            "allow_commands", []))
+        cmds = tuple(DEFAULT_ALLOWED_COMMANDS) + tuple(
+            str(c) for c in extra.get("allow_commands", [])
+        )
         hosts = tuple(DEFAULT_ALLOWED_HOSTS) + tuple(str(h) for h in extra.get("allow_hosts", []))
         timeout = int(extra.get("timeout", _DEFAULT_TIMEOUT))
-        return cls(run=run, repo_root=repo_root, allow_commands=cmds, allow_hosts=hosts,
-                   timeout=timeout)
+        return cls(
+            run=run, repo_root=repo_root, allow_commands=cmds, allow_hosts=hosts, timeout=timeout
+        )
 
     def command_allowed(self, command: str) -> bool:
         norm = " ".join(command.split())
@@ -130,18 +158,21 @@ def grade(claim: OutcomeClaim, policy: Policy | None = None) -> OutcomeVerdict:
         case "bug_fixed":
             return _grade_bug(claim, policy)
         case _:
-            return OutcomeVerdict(Honesty.NOT_OBSERVED, f"unknown outcome kind {claim.kind!r}",
-                                  needed=_needed(claim.kind))
+            return OutcomeVerdict(
+                Honesty.NOT_OBSERVED,
+                f"unknown outcome kind {claim.kind!r}",
+                needed=_needed(claim.kind),
+            )
 
 
 def _needed(kind: str) -> str:
     return {
         "tests_pass": "a command weft can re-run whose exit code is 0 (pass run=true), or a "
-                      "JUnit XML report path",
+        "JUnit XML report path",
         "endpoint_status": "an actual probe of the URL returning the claimed status "
-                           "(pass run=true for a local URL)",
+        "(pass run=true for a local URL)",
         "bug_fixed": "the specific failure signature observed before and absent after the fix, "
-                     "or a repro command weft can re-run",
+        "or a repro command weft can re-run",
     }.get(kind, "a machine-checkable signal")
 
 
@@ -155,8 +186,10 @@ def _grade_tests(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
     note = ""
     if policy.run and command:
         if not policy.command_allowed(command):
-            note = (f"refused to re-run {command!r}: not an allowlisted test command "
-                    f"(add it to [weft.honesty] allow_commands)")
+            note = (
+                f"refused to re-run {command!r}: not an allowlisted test command "
+                f"(add it to [weft.honesty] allow_commands)"
+            )
         else:
             ran = _run(command, policy, str(detail.get("cwd") or ""))
             if ran is None:
@@ -164,12 +197,16 @@ def _grade_tests(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
             else:
                 code, output = ran
                 if code == 0:
-                    return OutcomeVerdict(Honesty.PROVEN, f"re-ran {command!r}: exit code 0",
-                                          observed={"exit_code": 0, "command": command})
-                return OutcomeVerdict(Honesty.CONTRADICTED,
-                                      f"re-ran {command!r}: exit code {code}",
-                                      observed={"exit_code": code, "command": command,
-                                                "output_tail": _tail(output)})
+                    return OutcomeVerdict(
+                        Honesty.PROVEN,
+                        f"re-ran {command!r}: exit code 0",
+                        observed={"exit_code": 0, "command": command},
+                    )
+                return OutcomeVerdict(
+                    Honesty.CONTRADICTED,
+                    f"re-ran {command!r}: exit code {code}",
+                    observed={"exit_code": code, "command": command, "output_tail": _tail(output)},
+                )
     # No observation of our own: grade what was supplied, noting why we did not run.
     verdict = _grade_tests_evidence(detail, evidence, policy, needed)
     if note:
@@ -187,47 +224,61 @@ def _grade_tests_evidence(
             path = os.path.join(policy.repo_root, path)
         parsed = _parse_junit(path)
         if parsed is None:
-            return OutcomeVerdict(Honesty.NOT_OBSERVED,
-                                  f"test report {report!r} is missing or not JUnit XML",
-                                  needed=needed)
+            return OutcomeVerdict(
+                Honesty.NOT_OBSERVED,
+                f"test report {report!r} is missing or not JUnit XML",
+                needed=needed,
+            )
         tests, failures, errors = parsed
         if tests > 0 and failures == 0 and errors == 0:
-            return OutcomeVerdict(Honesty.PROVEN,
-                                  f"parsed {report}: {tests} tests, 0 failures, 0 errors",
-                                  observed={"report": str(report), "tests": tests})
+            return OutcomeVerdict(
+                Honesty.PROVEN,
+                f"parsed {report}: {tests} tests, 0 failures, 0 errors",
+                observed={"report": str(report), "tests": tests},
+            )
         if failures or errors:
-            return OutcomeVerdict(Honesty.CONTRADICTED,
-                                  f"parsed {report}: {failures} failures, {errors} errors",
-                                  observed={"report": str(report), "failures": failures,
-                                            "errors": errors})
-        return OutcomeVerdict(Honesty.NOT_OBSERVED, f"parsed {report}: no tests recorded",
-                              needed=needed)
+            return OutcomeVerdict(
+                Honesty.CONTRADICTED,
+                f"parsed {report}: {failures} failures, {errors} errors",
+                observed={"report": str(report), "failures": failures, "errors": errors},
+            )
+        return OutcomeVerdict(
+            Honesty.NOT_OBSERVED, f"parsed {report}: no tests recorded", needed=needed
+        )
     if "exit_code" in evidence:
         try:
             code = int(evidence["exit_code"])
         except (TypeError, ValueError):
-            return OutcomeVerdict(Honesty.NOT_OBSERVED, "exit_code evidence is not an integer",
-                                  needed=needed)
+            return OutcomeVerdict(
+                Honesty.NOT_OBSERVED, "exit_code evidence is not an integer", needed=needed
+            )
         if code == 0:
-            return OutcomeVerdict(Honesty.PLAUSIBLE,
-                                  "self-reported exit code 0; weft did not observe the run "
-                                  "(pass run=true to re-run it)")
-        return OutcomeVerdict(Honesty.CONTRADICTED, f"self-reported exit code {code}",
-                              observed={"exit_code": code})
+            return OutcomeVerdict(
+                Honesty.PLAUSIBLE,
+                "self-reported exit code 0; weft did not observe the run "
+                "(pass run=true to re-run it)",
+            )
+        return OutcomeVerdict(
+            Honesty.CONTRADICTED, f"self-reported exit code {code}", observed={"exit_code": code}
+        )
     output = str(evidence.get("output") or "")
     if output:
         failed = sum(int(m.group(1)) for m in _FAILED.finditer(output))
         passed = sum(int(m.group(1)) for m in _PASSED.finditer(output))
         if failed:
-            return OutcomeVerdict(Honesty.CONTRADICTED,
-                                  f"supplied output reports {failed} failed/errored",
-                                  observed={"failed": failed})
+            return OutcomeVerdict(
+                Honesty.CONTRADICTED,
+                f"supplied output reports {failed} failed/errored",
+                observed={"failed": failed},
+            )
         if passed:
-            return OutcomeVerdict(Honesty.PLAUSIBLE,
-                                  f"supplied output reports {passed} passed; weft did not "
-                                  f"observe the run")
-    return OutcomeVerdict(Honesty.NOT_OBSERVED, "no evidence supplied for tests_pass",
-                          needed=needed)
+            return OutcomeVerdict(
+                Honesty.PLAUSIBLE,
+                f"supplied output reports {passed} passed; weft did not observe the run",
+            )
+    return OutcomeVerdict(
+        Honesty.NOT_OBSERVED, "no evidence supplied for tests_pass", needed=needed
+    )
 
 
 def _parse_junit(path: str) -> tuple[int, int, int] | None:
@@ -268,37 +319,49 @@ def _grade_endpoint(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
     try:
         want = int(detail.get("status", 200))
     except (TypeError, ValueError):
-        return OutcomeVerdict(Honesty.NOT_OBSERVED, "claimed status is not an integer",
-                              needed=needed)
+        return OutcomeVerdict(
+            Honesty.NOT_OBSERVED, "claimed status is not an integer", needed=needed
+        )
     if not url:
         return OutcomeVerdict(Honesty.NOT_OBSERVED, "no url in the claim", needed=needed)
     if policy.run:
         if not policy.host_allowed(url):
-            return OutcomeVerdict(Honesty.NOT_OBSERVED,
-                                  f"refused to probe {url!r}: host not allowlisted "
-                                  f"(local hosts only unless [weft.honesty] allow_hosts adds it)",
-                                  needed=needed)
+            return OutcomeVerdict(
+                Honesty.NOT_OBSERVED,
+                f"refused to probe {url!r}: host not allowlisted "
+                f"(local hosts only unless [weft.honesty] allow_hosts adds it)",
+                needed=needed,
+            )
         got = _probe(url, str(detail.get("method") or "GET"), min(policy.timeout, 30))
         if got is None:
-            return OutcomeVerdict(Honesty.NOT_OBSERVED, f"could not connect to {url}",
-                                  needed=needed)
+            return OutcomeVerdict(
+                Honesty.NOT_OBSERVED, f"could not connect to {url}", needed=needed
+            )
         if got == want:
-            return OutcomeVerdict(Honesty.PROVEN, f"probed {url}: HTTP {got}",
-                                  observed={"status": got, "url": url})
-        return OutcomeVerdict(Honesty.CONTRADICTED, f"probed {url}: HTTP {got}, claimed {want}",
-                              observed={"status": got, "url": url})
+            return OutcomeVerdict(
+                Honesty.PROVEN, f"probed {url}: HTTP {got}", observed={"status": got, "url": url}
+            )
+        return OutcomeVerdict(
+            Honesty.CONTRADICTED,
+            f"probed {url}: HTTP {got}, claimed {want}",
+            observed={"status": got, "url": url},
+        )
     if "observed_status" in evidence or "status" in evidence:
         try:
             got = int(evidence.get("observed_status", evidence.get("status")) or 0)
         except (TypeError, ValueError):
-            return OutcomeVerdict(Honesty.NOT_OBSERVED, "observed_status is not an integer",
-                                  needed=needed)
+            return OutcomeVerdict(
+                Honesty.NOT_OBSERVED, "observed_status is not an integer", needed=needed
+            )
         if got == want:
-            return OutcomeVerdict(Honesty.PLAUSIBLE,
-                                  f"self-reported HTTP {got}; weft did not probe {url}")
-        return OutcomeVerdict(Honesty.CONTRADICTED,
-                              f"self-reported HTTP {got} but the claim says {want}",
-                              observed={"status": got})
+            return OutcomeVerdict(
+                Honesty.PLAUSIBLE, f"self-reported HTTP {got}; weft did not probe {url}"
+            )
+        return OutcomeVerdict(
+            Honesty.CONTRADICTED,
+            f"self-reported HTTP {got} but the claim says {want}",
+            observed={"status": got},
+        )
     return OutcomeVerdict(Honesty.NOT_OBSERVED, f"no probe of {url} supplied", needed=needed)
 
 
@@ -322,44 +385,61 @@ def _grade_bug(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
     command = str(detail.get("command") or evidence.get("command") or "").strip()
     needed = _needed("bug_fixed")
     if not signature:
-        return OutcomeVerdict(Honesty.NOT_OBSERVED, "no failure signature in the claim",
-                              needed=needed)
+        return OutcomeVerdict(
+            Honesty.NOT_OBSERVED, "no failure signature in the claim", needed=needed
+        )
     if policy.run and command:
         if not policy.command_allowed(command):
-            return OutcomeVerdict(Honesty.NOT_OBSERVED,
-                                  f"refused to re-run {command!r}: not an allowlisted command",
-                                  needed=needed)
+            return OutcomeVerdict(
+                Honesty.NOT_OBSERVED,
+                f"refused to re-run {command!r}: not an allowlisted command",
+                needed=needed,
+            )
         ran = _run(command, policy, str(detail.get("cwd") or ""))
         if ran is None:
-            return OutcomeVerdict(Honesty.NOT_OBSERVED, f"re-running {command!r} timed out or "
-                                                        f"could not start", needed=needed)
+            return OutcomeVerdict(
+                Honesty.NOT_OBSERVED,
+                f"re-running {command!r} timed out or could not start",
+                needed=needed,
+            )
         code, output = ran
         if signature in output:
-            return OutcomeVerdict(Honesty.CONTRADICTED,
-                                  f"re-ran {command!r}: the signature is still present",
-                                  observed={"exit_code": code, "signature_present": True})
+            return OutcomeVerdict(
+                Honesty.CONTRADICTED,
+                f"re-ran {command!r}: the signature is still present",
+                observed={"exit_code": code, "signature_present": True},
+            )
         if code == 0:
-            return OutcomeVerdict(Honesty.PROVEN, f"re-ran {command!r}: exit 0 and the "
-                                                  f"signature is absent",
-                                  observed={"exit_code": 0, "signature_present": False})
-        return OutcomeVerdict(Honesty.PLAUSIBLE,
-                              f"re-ran {command!r}: signature absent but exit code {code}",
-                              observed={"exit_code": code, "output_tail": _tail(output)})
+            return OutcomeVerdict(
+                Honesty.PROVEN,
+                f"re-ran {command!r}: exit 0 and the signature is absent",
+                observed={"exit_code": 0, "signature_present": False},
+            )
+        return OutcomeVerdict(
+            Honesty.PLAUSIBLE,
+            f"re-ran {command!r}: signature absent but exit code {code}",
+            observed={"exit_code": code, "output_tail": _tail(output)},
+        )
     before, after = str(evidence.get("before") or ""), str(evidence.get("after") or "")
     if before or after:
         if signature in after:
-            return OutcomeVerdict(Honesty.CONTRADICTED, "the signature is still in the 'after' "
-                                                        "output", observed={"signature_present":
-                                                                            True})
+            return OutcomeVerdict(
+                Honesty.CONTRADICTED,
+                "the signature is still in the 'after' output",
+                observed={"signature_present": True},
+            )
         if signature not in before:
-            return OutcomeVerdict(Honesty.NOT_OBSERVED,
-                                  "the signature never appears in the 'before' output, so the "
-                                  "bug was not observed", needed=needed)
-        return OutcomeVerdict(Honesty.PLAUSIBLE,
-                              "signature present before and absent after, per supplied logs; "
-                              "weft did not observe the runs")
-    return OutcomeVerdict(Honesty.NOT_OBSERVED, "no evidence supplied for bug_fixed",
-                          needed=needed)
+            return OutcomeVerdict(
+                Honesty.NOT_OBSERVED,
+                "the signature never appears in the 'before' output, so the bug was not observed",
+                needed=needed,
+            )
+        return OutcomeVerdict(
+            Honesty.PLAUSIBLE,
+            "signature present before and absent after, per supplied logs; "
+            "weft did not observe the runs",
+        )
+    return OutcomeVerdict(Honesty.NOT_OBSERVED, "no evidence supplied for bug_fixed", needed=needed)
 
 
 # --- running things ---------------------------------------------------------------------------
@@ -376,8 +456,9 @@ def _run(command: str, policy: Policy, cwd: str = "") -> tuple[int, str] | None:
     if cwd:
         workdir = cwd if os.path.isabs(cwd) else os.path.join(workdir or ".", cwd)
     try:
-        proc = subprocess.run(argv, cwd=workdir, capture_output=True, text=True,
-                              timeout=policy.timeout, check=False)
+        proc = subprocess.run(
+            argv, cwd=workdir, capture_output=True, text=True, timeout=policy.timeout, check=False
+        )
     except (OSError, subprocess.SubprocessError):
         return None
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
@@ -407,8 +488,11 @@ def check(claim: Claim, repo_root: str, config: Config | None, run: bool = False
     """
     evidence = claim.attrs.get("evidence")
     detail = {k: v for k, v in claim.attrs.items() if k != "evidence"}
-    outcome = OutcomeClaim(kind=claim.kind, detail=detail,
-                           evidence=dict(evidence) if isinstance(evidence, dict) else None)
+    outcome = OutcomeClaim(
+        kind=claim.kind,
+        detail=detail,
+        evidence=dict(evidence) if isinstance(evidence, dict) else None,
+    )
     verdict = grade(outcome, Policy.from_config(config, repo_root, run))
     reason = f"{verdict.verdict.value}: {verdict.reason}"
     if verdict.verdict is Honesty.NOT_OBSERVED and verdict.needed:

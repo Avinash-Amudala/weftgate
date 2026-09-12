@@ -7,9 +7,26 @@ import subprocess
 import sys
 import sysconfig
 
-CORE = ("types", "config", "registry", "oracle", "store", "gate", "change", "suggest",
-        "honesty", "cli", "mcp_server", "selftest", "setup", "oracles.env_vars",
-        "oracles.imports_lockfile", "oracles.routes_fastapi", "eval.audit", "eval.mutate")
+CORE = (
+    "types",
+    "config",
+    "registry",
+    "oracle",
+    "store",
+    "gate",
+    "change",
+    "suggest",
+    "honesty",
+    "cli",
+    "mcp_server",
+    "selftest",
+    "setup",
+    "oracles.env_vars",
+    "oracles.imports_lockfile",
+    "oracles.routes_fastapi",
+    "eval.audit",
+    "eval.mutate",
+)
 
 
 def test_core_modules_import_only_the_standard_library():
@@ -21,8 +38,9 @@ def test_core_modules_import_only_the_standard_library():
         " if getattr(v, '__file__', None) and 'site-packages' in (v.__file__ or '')"
         " and not k.startswith('weft'))))\n"
     )
-    proc = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
-                          check=True)
+    proc = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, check=True
+    )
     third_party = [line for line in proc.stdout.splitlines() if line.strip()]
     # Editable installs may expose a path hook; anything else is a real dependency.
     third_party = [m for m in third_party if not m.startswith("_") and "editable" not in m]

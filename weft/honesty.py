@@ -446,10 +446,16 @@ def _grade_bug(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
 
 
 def _run(command: str, policy: Policy, cwd: str = "") -> tuple[int, str] | None:
-    try:
-        argv = shlex.split(command)
-    except ValueError:
-        return None
+    argv: list[str] | str
+    if os.name == "nt":
+        # Windows parses the command line itself (backslashes are path separators,
+        # not escapes); hand the string over unchanged, without a shell.
+        argv = command.strip()
+    else:
+        try:
+            argv = shlex.split(command)
+        except ValueError:
+            return None
     if not argv:
         return None
     workdir = policy.repo_root or None

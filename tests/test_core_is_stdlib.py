@@ -32,11 +32,14 @@ CORE = (
 def test_core_modules_import_only_the_standard_library():
     script = (
         "import sys, importlib\n"
+        "def third_party():\n"
+        "    return {k for k, v in sys.modules.items()"
+        " if getattr(v, '__file__', None) and 'site-packages' in (v.__file__ or '')"
+        " and not k.startswith('weft')}\n"
+        "before = third_party()  # .pth hooks (pywin32_bootstrap, editable finders) preload\n"
         f"for m in {CORE!r}:\n"
         "    importlib.import_module('weft.' + m)\n"
-        "print('\\n'.join(sorted(k for k, v in sys.modules.items()"
-        " if getattr(v, '__file__', None) and 'site-packages' in (v.__file__ or '')"
-        " and not k.startswith('weft'))))\n"
+        "print('\\n'.join(sorted(third_party() - before)))\n"
     )
     proc = subprocess.run(
         [sys.executable, "-c", script], capture_output=True, text=True, check=True

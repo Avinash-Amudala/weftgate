@@ -249,23 +249,73 @@ def _stdlib_names() -> frozenset[str]:
 
 _STDLIB = _stdlib_names()
 _ENV_DISTS: dict[str, list[str]] | None = None
+_ENV_DIST_NAMES: set[str] | None = None
 
 
-def _all_installed_dists() -> list[list[str]]:
-    _installed_dists("")  # populate the cache
-    return list((_ENV_DISTS or {}).values())
+def _load_env_metadata() -> None:
+    """Map import names to the installed distributions that provide them, and record
+    every installed distribution name. Built from each distribution's own metadata
+    (``top_level.txt``, else the RECORD file list), which is what newer Pythons do
+    inside ``packages_distributions``; doing it here keeps 3.10 identical to 3.13.
+    Only ever used to *soften* a verdict or to confirm the environment matches the
+    project, never to produce a reject on its own."""
+    global _ENV_DISTS, _ENV_DIST_NAMES
+    if _ENV_DISTS is not None:
+        return
+    mapping: dict[str, set[str]] = {}
+    names: set[str] = set()
+    try:
+        dists = list(metadata.distributions())
+    except Exception:  # noqa: BLE001 - a broken site-packages must not matter
+        dists = []
+    for dist in dists:
+        try:
+            dist_name = str(dist.metadata["Name"] or "")
+        except Exception:  # noqa: BLE001
+            continue
+        if not dist_name:
+            continue
+        names.add(norm(dist_name))
+        tops: set[str] = set()
+        try:
+            top_level = dist.read_text("top_level.txt")
+        except Exception:  # noqa: BLE001
+            top_level = None
+        if top_level:
+            tops = {ln.strip() for ln in top_level.splitlines() if ln.strip()}
+        else:
+            try:
+                files = dist.files or []
+            except Exception:  # noqa: BLE001
+                files = []
+            for f in files:
+                parts = str(f).replace("\\", "/").split("/")
+                head = parts[0]
+                if (
+                    not head
+                    or head.endswith((".dist-info", ".egg-info"))
+                    or head.startswith(("__pycache__", "..", "__editable__"))
+                ):
+                    continue
+                if len(parts) == 1:
+                    head = head.split(".")[0]
+                if head.isidentifier():
+                    tops.add(head)
+        for top in tops:
+            mapping.setdefault(top, set()).add(dist_name)
+    _ENV_DISTS = {k: sorted(v) for k, v in mapping.items()}
+    _ENV_DIST_NAMES = names
 
 
 def _installed_dists(name: str) -> list[str]:
-    """Distributions installed in *this* interpreter that provide import ``name``.
-    Only ever used to soften a verdict, never to produce a REJECT."""
-    global _ENV_DISTS
-    if _ENV_DISTS is None:
-        try:
-            _ENV_DISTS = {k: sorted(set(v)) for k, v in metadata.packages_distributions().items()}
-        except Exception:  # noqa: BLE001 - a broken site-packages must not matter
-            _ENV_DISTS = {}
-    return _ENV_DISTS.get(name, [])
+    """Distributions installed in *this* interpreter that provide import ``name``."""
+    _load_env_metadata()
+    return list((_ENV_DISTS or {}).get(name, []))
+
+
+def _installed_dist_names() -> set[str]:
+    _load_env_metadata()
+    return set(_ENV_DIST_NAMES or set())
 
 
 class ImportsLockfileOracle(BaseOracle):
@@ -599,7 +649,7 @@ class _Index:
         if not wanted:
             self._coverage[project] = 0.0
             return 0.0
-        installed = {norm(d) for ds in _all_installed_dists() for d in ds}
+        installed = _installed_dist_names()
         self._coverage[project] = len(wanted & installed) / len(wanted)
         return self._coverage[project]
 

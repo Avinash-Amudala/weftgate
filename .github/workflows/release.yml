@@ -22,7 +22,7 @@ jobs:
           v=$(python -c "import weftgate; print(weftgate.__version__)")
           [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag does not match package version"; exit 1; }
       - run: python -m build && twine check dist/*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/

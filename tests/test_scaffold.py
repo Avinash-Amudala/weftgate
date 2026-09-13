@@ -11,11 +11,11 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def test_scaffold_writes_oracle_and_tests(tmp_path):
     root = str(tmp_path / "proj")
-    os.makedirs(os.path.join(root, "weft", "oracles"))
+    os.makedirs(os.path.join(root, "weftgate", "oracles"))
     os.makedirs(os.path.join(root, "tests"))
     shutil.copy(
-        os.path.join(REPO, "weft", "oracles", "__init__.py"),
-        os.path.join(root, "weft", "oracles", "__init__.py"),
+        os.path.join(REPO, "weftgate", "oracles", "__init__.py"),
+        os.path.join(root, "weftgate", "oracles", "__init__.py"),
     )
     shutil.copy(os.path.join(REPO, "pyproject.toml"), os.path.join(root, "pyproject.toml"))
     script = os.path.join(REPO, "scripts", "new-oracle.py")
@@ -26,7 +26,7 @@ def test_scaffold_writes_oracle_and_tests(tmp_path):
         check=False,
     )
     assert proc.returncode == 0, proc.stderr
-    oracle = os.path.join(root, "weft", "oracles", "config_keys.py")
+    oracle = os.path.join(root, "weftgate", "oracles", "config_keys.py")
     test = os.path.join(root, "tests", "test_config_keys.py")
     assert os.path.isfile(oracle) and os.path.isfile(test)
     ast.parse(open(oracle).read())  # compiles
@@ -36,11 +36,11 @@ def test_scaffold_writes_oracle_and_tests(tmp_path):
     assert 'kinds: tuple[str, ...] = ("config_key",)' in src
     assert "def register(api: OracleAPI)" in src
     assert (
-        '"config_keys": "weft.oracles.config_keys:register"'
-        in open(os.path.join(root, "weft", "oracles", "__init__.py")).read()
+        '"config_keys": "weftgate.oracles.config_keys:register"'
+        in open(os.path.join(root, "weftgate", "oracles", "__init__.py")).read()
     )
     assert (
-        'config_keys = "weft.oracles.config_keys:register"'
+        'config_keys = "weftgate.oracles.config_keys:register"'
         in open(os.path.join(root, "pyproject.toml")).read()
     )
     # Refuses to overwrite.

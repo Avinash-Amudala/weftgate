@@ -4,7 +4,7 @@ that ships costs a full failed round trip (the attempt, the error, the correctio
 so each avoided one is the number to lead with. Nothing here is a marketing
 percentage: it is a count of concrete events on the user's own repos.
 
-One JSON line per event under the cache directory (``WEFT_LEDGER=0`` disables it).
+One JSON line per event under the cache directory (``WEFTGATE_LEDGER=0`` disables it).
 Standard library only; never raises into the gate.
 """
 
@@ -24,7 +24,7 @@ ROUND_TRIP_TOKENS = 6_000
 
 
 def enabled() -> bool:
-    return os.environ.get("WEFT_LEDGER", "1") not in ("0", "false", "no", "off")
+    return os.environ.get("WEFTGATE_LEDGER", "1") not in ("0", "false", "no", "off")
 
 
 def path() -> str:
@@ -105,7 +105,7 @@ def render_text(info: dict[str, Any]) -> str:
     if not info["blocks"]:
         return (
             f"ledger: no blocked changes recorded yet ({info['path']})\n"
-            f"every reject weft raises before code ships is counted here"
+            f"every reject weftgate raises before code ships is counted here"
         )
     lines = [
         f"ledger: {info['blocks']} blocked change(s), {info['broken_wires']} broken wire(s) "

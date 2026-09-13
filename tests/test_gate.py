@@ -6,11 +6,11 @@ import pytest
 
 from tests.conftest import git_commit_all, git_init, have_git, write
 from tests.plugins.dummy_oracle import DummyOracle
-from weft.change import Change
-from weft.config import Config
-from weft.gate import Session, blocks, check_change, claims_from_json, index, status, suggest
-from weft.oracle import BaseOracle
-from weft.types import Claim, Level, Location
+from weftgate.change import Change
+from weftgate.config import Config
+from weftgate.gate import Session, blocks, check_change, claims_from_json, index, status, suggest
+from weftgate.oracle import BaseOracle
+from weftgate.types import Claim, Level, Location
 
 
 def _repo(tmp_path):
@@ -103,7 +103,7 @@ def test_oracle_crashes_never_block(tmp_path):
     root = _repo(tmp_path)
     with _session(root, oracles={"crasher": _Crasher(), "env_vars": None}) as s:
         # Replace the None placeholder with a real oracle to keep config order.
-        from weft.oracles.env_vars import EnvVarOracle
+        from weftgate.oracles.env_vars import EnvVarOracle
 
         s.oracles["env_vars"] = EnvVarOracle()
         report = s.sync()
@@ -192,7 +192,7 @@ def test_dedupe_and_plugin_oracle(tmp_path):
 
 def test_module_level_wrappers(tmp_path, monkeypatch):
     root = _repo(tmp_path)
-    write(root, "weft.toml", '[weft]\noracles = ["env_vars"]\n')
+    write(root, "weftgate.toml", '[weftgate]\noracles = ["env_vars"]\n')
     bad = write(root, "bad.py", "import os\nk = os.environ['DATABSE_URL']\n")
     assert check_change(root, Change.from_file(bad)).verdict is Level.REJECT
     assert index(root, rebuild=True)["oracles"]["env_vars"]["action"] == "build"

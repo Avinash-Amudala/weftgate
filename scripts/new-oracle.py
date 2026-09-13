@@ -5,7 +5,7 @@
     python scripts/new-oracle.py config_keys --kind config_key --package yourpkg   # out of tree
 
 Writes <package>/oracles/<name>.py and tests/test_<name>.py, and for in-tree oracles
-registers the name in weft/oracles/__init__.py and pyproject.toml.
+registers the name in weftgate/oracles/__init__.py and pyproject.toml.
 """
 
 from __future__ import annotations
@@ -183,7 +183,7 @@ def main() -> int:
     ap.add_argument("name", help="oracle name, e.g. config_keys")
     ap.add_argument("--kind", required=True, help="claim kind, e.g. config_key")
     ap.add_argument(
-        "--package", default="weft", help="package to write into (default: weft, in-tree)"
+        "--package", default="weftgate", help="package to write into (default: weftgate, in-tree)"
     )
     ap.add_argument("--root", default=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     args = ap.parse_args()
@@ -191,11 +191,11 @@ def main() -> int:
         print("name must be lowercase identifier-like (a-z, 0-9, _)", file=sys.stderr)
         return 2
     cls = "".join(p.capitalize() for p in args.name.split("_")) + "Oracle"
-    in_tree = args.package == "weft"
-    base = "weft"
+    in_tree = args.package == "weftgate"
+    base = "weftgate"
     pkg_dir = os.path.join(args.root, args.package, "oracles" if in_tree else "")
     os.makedirs(pkg_dir, exist_ok=True)
-    module = f"weft.oracles.{args.name}" if in_tree else f"{args.package}.{args.name}"
+    module = f"weftgate.oracles.{args.name}" if in_tree else f"{args.package}.{args.name}"
     oracle_path = os.path.join(pkg_dir, f"{args.name}.py")
     test_path = os.path.join(args.root, "tests", f"test_{args.name}.py")
     for path in (oracle_path, test_path):
@@ -213,28 +213,28 @@ def main() -> int:
         _register_in_tree(args.root, args.name)
     else:
         print(
-            f'register it: entry point [project.entry-points."weft.oracles"] '
-            f'{args.name} = "{module}:register", or list "{module}" in weft.toml'
+            f'register it: entry point [project.entry-points."weftgate.oracles"] '
+            f'{args.name} = "{module}:register", or list "{module}" in weftgate.toml'
         )
     print("next: replace every TODO, then run the four checks")
     return 0
 
 
 def _register_in_tree(root: str, name: str) -> None:
-    init = os.path.join(root, "weft", "oracles", "__init__.py")
+    init = os.path.join(root, "weftgate", "oracles", "__init__.py")
     with open(init, encoding="utf-8") as fh:
         text = fh.read()
-    line = f'    "{name}": "weft.oracles.{name}:register",\n'
+    line = f'    "{name}": "weftgate.oracles.{name}:register",\n'
     if line not in text:
         text = text.replace("}\n", line + "}\n", 1) if text.rstrip().endswith("}") else text + line
         with open(init, "w", encoding="utf-8") as fh:
             fh.write(text)
-        print("registered in weft/oracles/__init__.py")
+        print("registered in weftgate/oracles/__init__.py")
     pyproject = os.path.join(root, "pyproject.toml")
     with open(pyproject, encoding="utf-8") as fh:
         text = fh.read()
-    ep = f'{name} = "weft.oracles.{name}:register"\n'
-    marker = '[project.entry-points."weft.oracles"]\n'
+    ep = f'{name} = "weftgate.oracles.{name}:register"\n'
+    marker = '[project.entry-points."weftgate.oracles"]\n'
     if ep not in text and marker in text:
         text = text.replace(marker, marker + ep, 1)
         with open(pyproject, "w", encoding="utf-8") as fh:

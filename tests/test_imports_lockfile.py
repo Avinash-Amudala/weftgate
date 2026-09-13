@@ -5,12 +5,12 @@ import json
 import os
 
 from tests.conftest import write
-from weft.change import Change
-from weft.config import Config
-from weft.oracle import Context
-from weft.oracles.imports_lockfile import ImportsLockfileOracle, _parse_manifest, norm
-from weft.store import Store
-from weft.types import Level
+from weftgate.change import Change
+from weftgate.config import Config
+from weftgate.oracle import Context
+from weftgate.oracles.imports_lockfile import ImportsLockfileOracle, _parse_manifest, norm
+from weftgate.store import Store
+from weftgate.types import Level
 
 
 def _ctx(root, config=None):

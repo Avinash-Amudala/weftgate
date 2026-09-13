@@ -2,7 +2,7 @@
 
 An oracle answers one narrow, machine-checkable question about a relationship in a
 codebase: "does this route resolve to a defined handler", "is this env var declared
-anywhere the project declares them", "is this import in the lockfile". weft is the
+anywhere the project declares them", "is this import in the lockfile". weftgate is the
 gate; oracles are the product surface. Writing one is an afternoon, and this guide
 is the afternoon.
 
@@ -12,11 +12,11 @@ Start from a skeleton:
 python scripts/new-oracle.py config_keys --kind config_key
 ```
 
-That writes `weft/oracles/config_keys.py` and `tests/test_config_keys.py` with the
+That writes `weftgate/oracles/config_keys.py` and `tests/test_config_keys.py` with the
 protocol filled in and the three required tests stubbed, and registers the oracle in
-`weft/oracles/__init__.py` and `pyproject.toml`. For an out-of-tree plugin, pass
+`weftgate/oracles/__init__.py` and `pyproject.toml`. For an out-of-tree plugin, pass
 `--package yourpkg` to write the files under your own package instead; the registry
-finds it through the `weft.oracles` entry point or a dotted path in `weft.toml`.
+finds it through the `weftgate.oracles` entry point or a dotted path in `weftgate.toml`.
 
 ## The contract
 
@@ -33,7 +33,7 @@ class Oracle(Protocol):
     def suggest(self, claim: Claim, ctx: Context) -> list[str]: ...  # optional
 ```
 
-Subclass `weft.oracle.BaseOracle` and override what you need. It gives you
+Subclass `weftgate.oracle.BaseOracle` and override what you need. It gives you
 `accept`, `review`, `reject`, and `unverifiable` helpers that keep the verdict
 semantics in one place (a `reject` on a soft claim is capped to `review`
 automatically).
@@ -69,10 +69,10 @@ A false block gets the tool uninstalled the same day. When in doubt, review.
 4. **Check.** In `check`, return `UNVERIFIABLE` if your table is absent, `REVIEW`
    for soft claims, `ACCEPT` when the reference resolves, and `REJECT` with
    `did_you_mean` suggestions only for a proven absence.
-5. **Suggest.** `weft.suggest.did_you_mean(name, candidates)` is bounded Levenshtein
+5. **Suggest.** `weftgate.suggest.did_you_mean(name, candidates)` is bounded Levenshtein
    plus token overlap, deterministic and budget-capped.
 
-`weft/oracles/env_vars.py` is the fully worked reference. `tests/plugins/dummy_oracle.py`
+`weftgate/oracles/env_vars.py` is the fully worked reference. `tests/plugins/dummy_oracle.py`
 is the smallest possible oracle.
 
 ## The three tests
@@ -94,8 +94,8 @@ temp paths out of reasons (put volatile observations in `claim.attrs`).
 
 ## Registering
 
-In-tree oracles are listed in `weft/oracles/__init__.py` (`BUILTIN`) and under
-`[project.entry-points."weft.oracles"]` in `pyproject.toml`. A separately
+In-tree oracles are listed in `weftgate/oracles/__init__.py` (`BUILTIN`) and under
+`[project.entry-points."weftgate.oracles"]` in `pyproject.toml`. A separately
 distributed oracle exposes `register(api)`:
 
 ```python
@@ -104,10 +104,10 @@ def register(api: OracleAPI) -> None:
 ```
 
 and declares the entry point in its own `pyproject.toml`, or the user lists its
-dotted path in `weft.toml`:
+dotted path in `weftgate.toml`:
 
 ```toml
-[weft]
+[weftgate]
 oracles = ["env_vars", "imports_lockfile", "routes_fastapi", "yourpkg.config_keys"]
 ```
 
@@ -117,7 +117,7 @@ Run the mutation harness on a repo that exercises your oracle and check that eve
 injected breakage is detected, blocked, and suggested:
 
 ```bash
-weft eval mutate --seed 13
+weftgate eval mutate --seed 13
 ```
 
 Then audit a few real repos. Anything the oracle rejects that is not actually

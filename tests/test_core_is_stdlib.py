@@ -21,11 +21,9 @@ CORE = (
     "mcp_server",
     "selftest",
     "setup",
-    "oracles.env_vars",
-    "oracles.imports_lockfile",
-    "oracles.routes_fastapi",
-    "eval.audit",
-    "eval.mutate",
+    "memory",
+    "ledger",
+    "doctor",
 )
 
 
@@ -35,10 +33,10 @@ def test_core_modules_import_only_the_standard_library():
         "def third_party():\n"
         "    return {k for k, v in sys.modules.items()"
         " if getattr(v, '__file__', None) and 'site-packages' in (v.__file__ or '')"
-        " and not k.startswith('weft')}\n"
+        " and not k.startswith('weftgate')}\n"
         "before = third_party()  # .pth hooks (pywin32_bootstrap, editable finders) preload\n"
         f"for m in {CORE!r}:\n"
-        "    importlib.import_module('weft.' + m)\n"
+        "    importlib.import_module('weftgate.' + m)\n"
         "print('\\n'.join(sorted(third_party() - before)))\n"
     )
     proc = subprocess.run(
@@ -55,8 +53,8 @@ def test_strenum_backport_matches_the_real_thing():
     script = (
         "import sys\n"
         "sys.version_info = (3, 10, 0, 'final', 0)\n"
-        "import weft.types as t\n"
-        "assert t.StrEnum.__module__ == 'weft.types', t.StrEnum.__module__\n"
+        "import weftgate.types as t\n"
+        "assert t.StrEnum.__module__ == 'weftgate.types', t.StrEnum.__module__\n"
         "assert str(t.Level.REJECT) == 'reject' and t.Level.REJECT == 'reject'\n"
         "assert t.Level('review') is t.Level.REVIEW\n"
         "assert t.worst([t.Level.REVIEW, t.Level.UNVERIFIABLE]) is t.Level.REVIEW\n"

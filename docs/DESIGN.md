@@ -1,8 +1,8 @@
-# weft: design
+# weftgate: design
 
 *A verification gate for coding agents that checks the wiring, not the spelling.*
 
-Working name: **weft** (in weaving, the weft is the thread that crosses and binds the warp; here it is the thread that binds the parts of a codebase together). The name is provisional. Check availability on PyPI, npm, and GitHub before committing, and if it is taken, rename with a single find-and-replace since nothing in the design depends on it.
+Working name: **weftgate** (in weaving, the weftgate is the thread that crosses and binds the warp; here it is the thread that binds the parts of a codebase together). The name is provisional. Check availability on PyPI, npm, and GitHub before committing, and if it is taken, rename with a single find-and-replace since nothing in the design depends on it.
 
 License: Apache-2.0.
 
@@ -34,9 +34,9 @@ As of late 2026 there is a crowd of tools that verify symbol existence for agent
 
 There is also a set of drift tools that watch an external API's schema for breaking changes over time. That is a different problem: it is about a remote contract evolving, not about whether the code an agent just wrote connects to the project's own artifacts.
 
-weft occupies the gap between them. It verifies that the code an agent produced connects correctly to the project's own relationships and contracts. Symbol existence is the floor, delegated to a language server where one is available so weft is never worse than the symbol-checkers. The value is the edges above that floor, which nobody is checking as a product.
+weftgate occupies the gap between them. It verifies that the code an agent produced connects correctly to the project's own relationships and contracts. Symbol existence is the floor, delegated to a language server where one is available so weftgate is never worse than the symbol-checkers. The value is the edges above that floor, which nobody is checking as a product.
 
-The second difference is measurement. weft ships an evaluation harness and an audit mode from day one, because a correctness gate that cannot show it is correct does not earn trust. See section 11.
+The second difference is measurement. weftgate ships an evaluation harness and an audit mode from day one, because a correctness gate that cannot show it is correct does not earn trust. See section 11.
 
 ## 3. Core concepts
 
@@ -44,11 +44,11 @@ Four concepts carry the whole system.
 
 **Oracle.** A component that answers one narrow, exact, machine-checkable question about a relationship, built from the project's own artifacts. The env-var oracle answers "is this used variable declared anywhere the project declares variables." The route oracle answers "does this route resolve to a defined, registered handler." Oracles are plugins. The set of oracles is the product's surface, and the community extends it. This is the platform and the moat.
 
-**Claim.** A single relational assertion to be checked, with a location. Claims come from two places. In diff mode, weft extracts them by parsing a code change: the change reads `DATABASE_URL`, so there is a claim that `DATABASE_URL` is declared. In claim mode, an agent states them directly: "I added route POST /users handled by users.create, and tests pass." Diff mode is deterministic and needs no model. Claim mode adds the honesty gate of section 9.
+**Claim.** A single relational assertion to be checked, with a location. Claims come from two places. In diff mode, weftgate extracts them by parsing a code change: the change reads `DATABASE_URL`, so there is a claim that `DATABASE_URL` is declared. In claim mode, an agent states them directly: "I added route POST /users handled by users.create, and tests pass." Diff mode is deterministic and needs no model. Claim mode adds the honesty gate of section 9.
 
 **Verdict.** The result of checking one claim, at one of four levels. `ACCEPT` means it resolved, or there was nothing checkable. `REVIEW` means a soft miss, something that could not be fully resolved and is worth a human glance but is not a proven error. `REJECT` means a hard claim is provably false. `UNVERIFIABLE` means the oracle could not run at all, for example its index has not been built. The gate's overall verdict is the worst level among its findings, with `UNVERIFIABLE` never contributing to a block.
 
-**Soft-fail.** The single most important behavioral rule. weft blocks only on a positive, machine-checkable falsehood. Everything else degrades to review, to a suggestion, or to silence. A missing index never rejects. A dynamic or computed reference that cannot be resolved softens to review. A prose-derived claim in claim mode softens from reject to review. A gate that false-blocks gets uninstalled within a day, so the bias is deliberate and strong: when in doubt, do not block.
+**Soft-fail.** The single most important behavioral rule. weftgate blocks only on a positive, machine-checkable falsehood. Everything else degrades to review, to a suggestion, or to silence. A missing index never rejects. A dynamic or computed reference that cannot be resolved softens to review. A prose-derived claim in claim mode softens from reject to review. A gate that false-blocks gets uninstalled within a day, so the bias is deliberate and strong: when in doubt, do not block.
 
 ## 4. Architecture
 
@@ -123,8 +123,8 @@ def register(api: OracleAPI) -> None:
 Config enables oracles by name or dotted path:
 
 ```toml
-# weft.toml
-[weft]
+# weftgate.toml
+[weftgate]
 oracles = ["env_vars", "imports_lockfile", "routes_fastapi", "yourpkg.your_oracle"]
 ```
 
@@ -132,14 +132,14 @@ The invariant every oracle must honor is the soft-fail rule. An oracle that cann
 
 ## 6. Indexing substrate
 
-One SQLite file per repo, at `~/.cache/weft/<repo-hash>.sqlite`, outside the repo. A `meta` table records the schema version, the repo root, the git commit the index was built at, and per-oracle build metadata. Each oracle owns its own tables, prefixed with its name.
+One SQLite file per repo, at `~/.cache/weftgate/<repo-hash>.sqlite`, outside the repo. A `meta` table records the schema version, the repo root, the git commit the index was built at, and per-oracle build metadata. Each oracle owns its own tables, prefixed with its name.
 
 Build once, sync incrementally. A full build parses the whole repo. `sync` reindexes only the files that changed since the recorded commit, plus the working-tree diff, so a no-op sync is well under a second and a single changed file is about a second. Sync runs before every check so the gate is never stale. A structural rebuild must never discard expensive index state that is still valid; preserve and restore per-oracle tables across rebuilds the way a careful cache does.
 
 Parsing is tiered so the tool installs and runs with nothing heavy, and gets sharper when optional extras are present.
 
 - **Tier 0, always, standard library only.** The relational oracles that are structured file reads: env vars, config keys, imports against the lockfile, framework routes read from the framework's own registration files. These are the differentiators, and they are cheap and dependency-free. This ordering is deliberate: the commodity work (symbol existence) is the part that needs heavy tooling, and the distinctive work (edges) is the part that does not.
-- **Tier 1, optional extras.** Tree-sitter for cross-language structural extraction, and a language-server client for authoritative symbol resolution. Installed via `pip install weft[treesitter]` or `weft[lsp]`. When absent, oracles that depend on them return `UNVERIFIABLE`, never a false reject.
+- **Tier 1, optional extras.** Tree-sitter for cross-language structural extraction, and a language-server client for authoritative symbol resolution. Installed via `pip install weftgate[treesitter]` or `weftgate[lsp]`. When absent, oracles that depend on them return `UNVERIFIABLE`, never a false reject.
 
 ## 7. Verdict semantics
 
@@ -164,7 +164,7 @@ The v1 goal is not breadth. It is three oracles that are correct, measured, and 
 
 ## 9. The honesty gate (claim mode)
 
-When an agent asserts an outcome rather than a reference, weft grades it by evidence and refuses to rubber-stamp. Outcome claims: tests pass, a bug is fixed, an endpoint returns a given status. Verdicts:
+When an agent asserts an outcome rather than a reference, weftgate grades it by evidence and refuses to rubber-stamp. Outcome claims: tests pass, a bug is fixed, an endpoint returns a given status. Verdicts:
 
 | Verdict | Condition |
 |---|---|
@@ -173,16 +173,16 @@ When an agent asserts an outcome rather than a reference, weft grades it by evid
 | `NOT_OBSERVED` | No evidence was supplied or found |
 | `CONTRADICTED` | Evidence shows the claim is false |
 
-The rule that makes this more than a slogan: never `PROVEN` without a matching machine-checkable signal. For "tests pass," that is an exit code of zero from a named command weft can re-run, or a parsed test report. For "endpoint returns 200," that is an actual probe. A claim with no evidence is `NOT_OBSERVED`, and the agent is told what evidence would settle it. This mirrors the discipline that a reproduction is only real when the specific signature was observed, generalized to any outcome claim.
+The rule that makes this more than a slogan: never `PROVEN` without a matching machine-checkable signal. For "tests pass," that is an exit code of zero from a named command weftgate can re-run, or a parsed test report. For "endpoint returns 200," that is an actual probe. A claim with no evidence is `NOT_OBSERVED`, and the agent is told what evidence would settle it. This mirrors the discipline that a reproduction is only real when the specific signature was observed, generalized to any outcome claim.
 
 ## 10. Cross-agent surfaces
 
-One gate, four ways to reach it, so weft works everywhere an agent runs.
+One gate, four ways to reach it, so weftgate works everywhere an agent runs.
 
 - **MCP server** over stdio, tools: `check_change` (verify a file, patch, or diff), `check_claim` (verify structured claims, including honesty), `audit` (sweep the repo, section 11), `suggest` (did-you-mean for one reference), `index_status`. Works with Claude Code, Codex, Cursor, Antigravity, Windsurf, and any MCP client.
-- **Plain CLI** with identical output, so an MCP-blocked org loses nothing and the two surfaces cannot drift: `weft check <path|->`, `weft claim <json>`, `weft audit`, `weft index`, `weft eval`.
+- **Plain CLI** with identical output, so an MCP-blocked org loses nothing and the two surfaces cannot drift: `weftgate check <path|->`, `weftgate claim <json>`, `weftgate audit`, `weftgate index`, `weftgate eval`.
 - **Hooks.** A Claude Code PreToolUse hook that vets every Edit and Write before it lands. A git pre-commit hook. Both call the CLI and block only on `REJECT`.
-- **CI action.** A GitHub Action that runs `weft check` on the pull request diff and `weft audit` on a schedule.
+- **CI action.** A GitHub Action that runs `weftgate check` on the pull request diff and `weftgate audit` on a schedule.
 
 A setup command detects the stack, enables the right oracles, builds the index, and writes the agent and hook configuration, so adoption is one command.
 
@@ -191,21 +191,21 @@ A setup command detects the stack, enables the right oracles, builds the index, 
 Trust is the product. Two harnesses, both shipped.
 
 - **Mutation harness** (`eval/mutate.py`). Inject known-bad edges into a real repo: rename a handler so a route dangles, delete an env declaration, point an import at a phantom package, and confirm the gate detects and blocks each. Deterministic by seed. Count a detection with no usable suggestion as a miss, so there is no survivorship bias. Report detected and blocked separately, per oracle. This answers "does the gate catch what it claims to."
-- **Audit mode** (`eval/audit.py`, and the `audit` surface). Run the gate over the existing, already-merged codebase and surface the latent broken edges that are already there. This is both a correctness check and the adoption loop: a developer runs `weft audit` on their own repo, sees a real count of broken wires they did not know about, and that surprise is the reason they install it and tell someone. The field-audit result is the most credible number the project can have, because the user generates it on their own code.
+- **Audit mode** (`eval/audit.py`, and the `audit` surface). Run the gate over the existing, already-merged codebase and surface the latent broken edges that are already there. This is both a correctness check and the adoption loop: a developer runs `weftgate audit` on their own repo, sees a real count of broken wires they did not know about, and that surprise is the reason they install it and tell someone. The field-audit result is the most credible number the project can have, because the user generates it on their own code.
 
 Honesty rule for all reported numbers: any figure tuned on the same repo it was measured on is labeled an upper bound, not a field number. The audit result on the user's own untouched code is the number that carries weight.
 
 ## 12. Configuration
 
-Precedence: `WEFT_*` environment variables, then repo `weft.toml` or `.weft.json`, then a user config, then defaults. Stack is auto-detected but can be pinned. Minimal example:
+Precedence: `WEFTGATE_*` environment variables, then repo `weftgate.toml` or `.weftgate.json`, then a user config, then defaults. Stack is auto-detected but can be pinned. Minimal example:
 
 ```toml
-[weft]
+[weftgate]
 oracles = ["env_vars", "imports_lockfile", "routes_fastapi"]
 block_on = "reject"          # reject | review | never
 env_declared_in = [".env.example", "settings.py"]
 
-[weft.routes_fastapi]
+[weftgate.routes_fastapi]
 app = "app.main:app"
 ```
 

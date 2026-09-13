@@ -1,5 +1,5 @@
 """The recall consumer's half of the graph (docs/ADDENDUM section A5): anchors and
-self-invalidation for verified memory, and weft's oracles offered to mnemo's
+self-invalidation for verified memory, and weftgate's oracles offered to mnemo's
 verify registry.
 
 A memory that says "the API reads DATABASE_URL and POST /orders is handled by
@@ -41,7 +41,7 @@ _IMPORT = re.compile(r"(?:^|[\s`(])(?:import|from)\s+([A-Za-z_][\w]*)(?:[.\s`)]|
 _BACKTICK_MODULE = re.compile(r"`([a-z][a-z0-9_]{2,})`")
 
 
-# --- anchors ----------------------------------------------------------------------------------
+# --- anchors --------------------------------------------------------------------------------------
 
 
 def anchor(
@@ -139,7 +139,7 @@ def _make_anchor(
     base: dict[str, Any] = {
         "kind": kind,
         "locator": value,
-        "oracle": "weft",
+        "oracle": "weftgate",
         "commit": commit,
         "checked_at": now,
         "declared": declared,
@@ -175,7 +175,7 @@ def _make_anchor(
             return {
                 **base,
                 "node": f"env:{value}",
-                "oracle": "weft.env_vars",
+                "oracle": "weftgate.env_vars",
                 **_state_of(f, "declared"),
                 **({"content_hash": decl} if decl else {}),
             }
@@ -184,7 +184,7 @@ def _make_anchor(
             return {
                 **base,
                 "node": f"route:{_norm_route(value)}",
-                "oracle": "weft.routes_fastapi",
+                "oracle": "weftgate.routes_fastapi",
                 **_state_of(f, "registered"),
                 **({"content_hash": _sha(f.reason)} if f.level is Level.ACCEPT else {}),
             }
@@ -194,7 +194,7 @@ def _make_anchor(
             return {
                 **base,
                 "node": f"dist:{_lang_of(value)}:{top}",
-                "oracle": "weft.imports_lockfile",
+                "oracle": "weftgate.imports_lockfile",
                 **_state_of(f, "provided"),
             }
         case _:  # symbol: "path/to/file.py:name"
@@ -324,9 +324,9 @@ def _lang_of(spec: str) -> str:
     return "node" if spec.startswith("@") or "/" in spec or "-" in spec else "python"
 
 
-# --- the mnemo plugin: weft's oracles inside mnemo's verify gate --------------------------------
+# --- the mnemo plugin: weftgate's oracles inside mnemo's verify gate ------------------------------
 #
-# mnemo loads plugins named in .mnemo.json ("oracles": ["weft.memory"]) and calls
+# mnemo loads plugins named in .mnemo.json ("oracles": ["weftgate.memory"]) and calls
 # register(api); api.register_oracle(kind, extract, check) where
 #   extract(text) -> [value, ...]                  candidate claims read from prose
 #   check(value, declared, repo_root) -> ledger    {"type", "claim", "status", "reason", ...}
@@ -362,7 +362,7 @@ def _ledger(
             "type": kind,
             "claim": value,
             "status": "unverifiable",
-            "reason": f"weft could not check: {exc}",
+            "reason": f"weftgate could not check: {exc}",
         }
     status = {
         Level.ACCEPT: "accept",
@@ -377,7 +377,7 @@ def _ledger(
         "claim": value,
         "status": status,
         "reason": f.reason,
-        "oracle": f"weft.{f.oracle}",
+        "oracle": f"weftgate.{f.oracle}",
     }
     if f.suggestions:
         entry["did_you_mean"] = list(f.suggestions)

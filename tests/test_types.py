@@ -2,7 +2,7 @@
 
 import json
 
-from weft.types import Claim, Finding, GateResult, Level, Location, worst
+from weftgate.types import Claim, Finding, GateResult, Level, Location, worst
 
 
 def _claim(subject: str = "X", hard: bool = True, source: str = "code", line: int = 1) -> Claim:

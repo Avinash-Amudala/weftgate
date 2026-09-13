@@ -29,7 +29,7 @@ bug_fixed
   nothing                                                              -> NOT_OBSERVED
 
 Re-running is a side effect, so it is off unless the caller passes ``run=True``
-and the command starts with an allowlisted test runner (``[weft.honesty]
+and the command starts with an allowlisted test runner (``[weftgate.honesty]
 allow_commands`` extends the list). Probing is limited to localhost unless
 ``allow_hosts`` extends it. Standard library only; no network on the default path.
 """
@@ -167,16 +167,16 @@ def grade(claim: OutcomeClaim, policy: Policy | None = None) -> OutcomeVerdict:
 
 def _needed(kind: str) -> str:
     return {
-        "tests_pass": "a command weft can re-run whose exit code is 0 (pass run=true), or a "
+        "tests_pass": "a command weftgate can re-run whose exit code is 0 (pass run=true), or a "
         "JUnit XML report path",
         "endpoint_status": "an actual probe of the URL returning the claimed status "
         "(pass run=true for a local URL)",
         "bug_fixed": "the specific failure signature observed before and absent after the fix, "
-        "or a repro command weft can re-run",
+        "or a repro command weftgate can re-run",
     }.get(kind, "a machine-checkable signal")
 
 
-# --- tests_pass ------------------------------------------------------------------------------
+# --- tests_pass -----------------------------------------------------------------------------------
 
 
 def _grade_tests(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
@@ -188,7 +188,7 @@ def _grade_tests(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
         if not policy.command_allowed(command):
             note = (
                 f"refused to re-run {command!r}: not an allowlisted test command "
-                f"(add it to [weft.honesty] allow_commands)"
+                f"(add it to [weftgate.honesty] allow_commands)"
             )
         else:
             ran = _run(command, policy, str(detail.get("cwd") or ""))
@@ -255,7 +255,7 @@ def _grade_tests_evidence(
         if code == 0:
             return OutcomeVerdict(
                 Honesty.PLAUSIBLE,
-                "self-reported exit code 0; weft did not observe the run "
+                "self-reported exit code 0; weftgate did not observe the run "
                 "(pass run=true to re-run it)",
             )
         return OutcomeVerdict(
@@ -274,7 +274,7 @@ def _grade_tests_evidence(
         if passed:
             return OutcomeVerdict(
                 Honesty.PLAUSIBLE,
-                f"supplied output reports {passed} passed; weft did not observe the run",
+                f"supplied output reports {passed} passed; weftgate did not observe the run",
             )
     return OutcomeVerdict(
         Honesty.NOT_OBSERVED, "no evidence supplied for tests_pass", needed=needed
@@ -309,7 +309,7 @@ def _int_attr(node: ElementTree.Element, name: str) -> int:
         return 0
 
 
-# --- endpoint_status ---------------------------------------------------------------------------
+# --- endpoint_status ------------------------------------------------------------------------------
 
 
 def _grade_endpoint(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
@@ -329,7 +329,7 @@ def _grade_endpoint(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
             return OutcomeVerdict(
                 Honesty.NOT_OBSERVED,
                 f"refused to probe {url!r}: host not allowlisted "
-                f"(local hosts only unless [weft.honesty] allow_hosts adds it)",
+                f"(local hosts only unless [weftgate.honesty] allow_hosts adds it)",
                 needed=needed,
             )
         got = _probe(url, str(detail.get("method") or "GET"), min(policy.timeout, 30))
@@ -355,7 +355,7 @@ def _grade_endpoint(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
             )
         if got == want:
             return OutcomeVerdict(
-                Honesty.PLAUSIBLE, f"self-reported HTTP {got}; weft did not probe {url}"
+                Honesty.PLAUSIBLE, f"self-reported HTTP {got}; weftgate did not probe {url}"
             )
         return OutcomeVerdict(
             Honesty.CONTRADICTED,
@@ -376,7 +376,7 @@ def _probe(url: str, method: str, timeout: int) -> int | None:
         return None
 
 
-# --- bug_fixed -----------------------------------------------------------------------------
+# --- bug_fixed ------------------------------------------------------------------------------------
 
 
 def _grade_bug(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
@@ -437,12 +437,12 @@ def _grade_bug(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
         return OutcomeVerdict(
             Honesty.PLAUSIBLE,
             "signature present before and absent after, per supplied logs; "
-            "weft did not observe the runs",
+            "weftgate did not observe the runs",
         )
     return OutcomeVerdict(Honesty.NOT_OBSERVED, "no evidence supplied for bug_fixed", needed=needed)
 
 
-# --- running things ---------------------------------------------------------------------------
+# --- running things -------------------------------------------------------------------------------
 
 
 def _run(command: str, policy: Policy, cwd: str = "") -> tuple[int, str] | None:
@@ -475,7 +475,7 @@ def _tail(output: str, n: int = 300) -> str:
     return text[-n:] if len(text) > n else text
 
 
-# --- gate adapter ---------------------------------------------------------------------------
+# --- gate adapter ---------------------------------------------------------------------------------
 
 
 _LEVELS = {

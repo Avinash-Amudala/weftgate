@@ -85,7 +85,7 @@ def run(
 ) -> MutationReport:
     """Run the harness on ``repo_root`` (copied), or on the built-in fixture if None."""
     rng = random.Random(seed)
-    with tempfile.TemporaryDirectory(prefix="weft-mutate-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="weftgate-mutate-") as tmp:
         work = os.path.join(tmp, "repo")
         if repo_root is None:
             os.makedirs(work)
@@ -116,7 +116,7 @@ def run(
         return report
 
 
-# --- candidates ---------------------------------------------------------------------------------
+# --- candidates -----------------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -204,7 +204,7 @@ def _eligible(f: Finding) -> bool:
     return False
 
 
-# --- mutations -------------------------------------------------------------------------------
+# --- mutations ------------------------------------------------------------------------------------
 
 
 def _typo(name: str, rng: random.Random) -> str:

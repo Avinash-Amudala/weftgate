@@ -1,5 +1,5 @@
-"""Config load with precedence: ``WEFT_*`` environment variables, then the repo's
-``weft.toml`` or ``.weft.json``, then a user config, then defaults. Stack is
+"""Config load with precedence: ``WEFTGATE_*`` environment variables, then the repo's
+``weftgate.toml`` or ``.weftgate.json``, then a user config, then defaults. Stack is
 auto-detected but can be pinned. Standard library only.
 """
 
@@ -64,7 +64,7 @@ class Config:
 
     @classmethod
     def load(cls, repo_root: str, environ: dict[str, str] | None = None) -> Config:
-        """Merge defaults <- user config <- repo config <- WEFT_* environment."""
+        """Merge defaults <- user config <- repo config <- WEFTGATE_* environment."""
         env = os.environ if environ is None else environ
         cfg = cls()
         for label, path in (("user", user_config_path(env)), ("repo", repo_config_path(repo_root))):
@@ -97,18 +97,18 @@ class Config:
                 self.per_oracle[key] = merged
 
     def _apply_env(self, env: dict[str, str] | os._Environ[str]) -> None:
-        if env.get("WEFT_ORACLES"):
-            self.oracles = _split_csv(env["WEFT_ORACLES"])
-            self.sources.append("env:WEFT_ORACLES")
-        if env.get("WEFT_BLOCK_ON"):
-            self.block_on = env["WEFT_BLOCK_ON"].strip().lower()
-            self.sources.append("env:WEFT_BLOCK_ON")
-        if env.get("WEFT_ENV_DECLARED_IN"):
-            self.env_declared_in = _split_csv(env["WEFT_ENV_DECLARED_IN"])
-            self.sources.append("env:WEFT_ENV_DECLARED_IN")
-        if env.get("WEFT_STACK"):
-            self.stack = _split_csv(env["WEFT_STACK"])
-            self.sources.append("env:WEFT_STACK")
+        if env.get("WEFTGATE_ORACLES"):
+            self.oracles = _split_csv(env["WEFTGATE_ORACLES"])
+            self.sources.append("env:WEFTGATE_ORACLES")
+        if env.get("WEFTGATE_BLOCK_ON"):
+            self.block_on = env["WEFTGATE_BLOCK_ON"].strip().lower()
+            self.sources.append("env:WEFTGATE_BLOCK_ON")
+        if env.get("WEFTGATE_ENV_DECLARED_IN"):
+            self.env_declared_in = _split_csv(env["WEFTGATE_ENV_DECLARED_IN"])
+            self.sources.append("env:WEFTGATE_ENV_DECLARED_IN")
+        if env.get("WEFTGATE_STACK"):
+            self.stack = _split_csv(env["WEFTGATE_STACK"])
+            self.sources.append("env:WEFTGATE_STACK")
 
     def validate(self) -> None:
         if self.block_on not in BLOCK_ON_VALUES:
@@ -141,11 +141,11 @@ class Config:
         }
 
 
-# --- paths -----------------------------------------------------------------------------
+# --- paths ----------------------------------------------------------------------------------------
 
 
 def repo_config_path(repo_root: str) -> str | None:
-    for name in ("weft.toml", ".weft.json"):
+    for name in ("weftgate.toml", ".weftgate.json"):
         path = os.path.join(repo_root, name)
         if os.path.isfile(path):
             return path
@@ -154,19 +154,19 @@ def repo_config_path(repo_root: str) -> str | None:
 
 def user_config_path(env: dict[str, str] | os._Environ[str] | None = None) -> str | None:
     env = os.environ if env is None else env
-    explicit = env.get("WEFT_USER_CONFIG")
+    explicit = env.get("WEFTGATE_USER_CONFIG")
     if explicit:
         return explicit if os.path.isfile(explicit) else None
     base = env.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
-    for name in ("weft.toml", "weft.json"):
-        path = os.path.join(base, "weft", name)
+    for name in ("weftgate.toml", "weftgate.json"):
+        path = os.path.join(base, "weftgate", name)
         if os.path.isfile(path):
             return path
     return None
 
 
 def find_repo_root(start: str = ".") -> str:
-    """Walk up from ``start`` to the nearest directory holding ``.git`` or a weft config.
+    """Walk up from ``start`` to the nearest directory holding ``.git`` or a weftgate config.
 
     Falls back to ``start`` itself. Used by the CLI when ``--repo`` is not given.
     """
@@ -175,7 +175,7 @@ def find_repo_root(start: str = ".") -> str:
         cur = os.path.dirname(cur)
     probe = cur
     while True:
-        for marker in (".git", "weft.toml", ".weft.json"):
+        for marker in (".git", "weftgate.toml", ".weftgate.json"):
             if os.path.exists(os.path.join(probe, marker)):
                 return probe
         parent = os.path.dirname(probe)
@@ -184,7 +184,7 @@ def find_repo_root(start: str = ".") -> str:
         probe = parent
 
 
-# --- file readers ------------------------------------------------------------------------
+# --- file readers ---------------------------------------------------------------------------------
 
 
 def _read_config_file(path: str) -> dict[str, Any] | None:
@@ -196,9 +196,9 @@ def _read_config_file(path: str) -> dict[str, Any] | None:
         loaded = load_toml(text)
     if not isinstance(loaded, dict):
         raise ValueError(f"{path}: top level must be a table")
-    section = loaded.get("weft", loaded)
+    section = loaded.get("weftgate", loaded)
     if not isinstance(section, dict):
-        raise ValueError(f"{path}: [weft] must be a table")
+        raise ValueError(f"{path}: [weftgate] must be a table")
     return dict(section)
 
 
@@ -219,7 +219,7 @@ _TOML_KV = re.compile(r"^\s*([A-Za-z0-9_.\-\"']+)\s*=\s*(.+?)\s*$")
 
 
 def _parse_toml_subset(text: str) -> dict[str, Any]:
-    """The subset weft.toml uses: tables, dotted tables, strings, ints, floats,
+    """The subset weftgate.toml uses: tables, dotted tables, strings, ints, floats,
     booleans, and single-line arrays of those. Comments and blank lines are skipped."""
     root: dict[str, Any] = {}
     current = root
@@ -316,11 +316,11 @@ def _split_csv(value: str) -> list[str]:
     return [v.strip() for v in value.split(",") if v.strip()]
 
 
-# --- stack detection ---------------------------------------------------------------------
+# --- stack detection ------------------------------------------------------------------------------
 
 
 def detect_stack(repo_root: str, config: Config | None = None) -> list[str]:
-    """Best-effort stack detection used by ``weft setup`` and ``index_status``.
+    """Best-effort stack detection used by ``weftgate setup`` and ``index_status``.
 
     Returns a sorted list of tags such as ``python``, ``node``, ``fastapi``. A
     pinned ``config.stack`` wins outright.

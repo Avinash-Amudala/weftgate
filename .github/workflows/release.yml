@@ -15,11 +15,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[all,dev]" build twine
-      - run: ruff check . && mypy weft && python -m weft.selftest && pytest -q
+      - run: ruff check . && mypy weftgate && python -m weftgate.selftest && pytest -q
       - name: tag matches the package version
         run: |
           set -euo pipefail
-          v=$(python -c "import weft; print(weft.__version__)")
+          v=$(python -c "import weftgate; print(weftgate.__version__)")
           [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "tag ${GITHUB_REF_NAME} != v$v"; exit 1; }
       - run: python -m build && twine check dist/*
       - uses: actions/upload-artifact@v4

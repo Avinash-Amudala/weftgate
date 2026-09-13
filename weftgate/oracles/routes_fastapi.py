@@ -15,7 +15,7 @@ Diff mode checks the edges a change creates:
   handler imported from a module outside the repo                      -> REVIEW
 Claim mode checks a stated route ("POST /users", handler "users.create"):
   no such method+path in the resolved route table                      -> REJECT
-  path exists only under a prefix weft could not resolve               -> REVIEW
+  path exists only under a prefix weftgate could not resolve               -> REVIEW
   no FastAPI usage in the repo / index not built                       -> UNVERIFIABLE
 """
 
@@ -393,15 +393,15 @@ class RoutesFastAPIOracle(BaseOracle):
             for r in table
             if (method in ("ANY", "*") or r.method == method)
             and r.full is None
-            and _norm_path(r.path)
-            and want.endswith(_norm_path(r.path))
+            and _suffix_params_match(r.known_tail(), want)
         ]
         if loose:
             r = loose[0]
             return self.review(
                 claim,
-                f"{r.method} {r.path} exists in {r.file} under a prefix "
-                f"weft could not resolve; cannot confirm {claim.subject}",
+                f"{r.method} {r.known_tail()} exists in {r.file} under a prefix weft could "
+                f"not resolve (name the root app in [weftgate.routes_fastapi] app = "
+                f'"pkg.mod:var" to make this exact); cannot confirm {claim.subject}',
             )
         same_method = sorted(
             {
@@ -427,6 +427,14 @@ class RoutesFastAPIOracle(BaseOracle):
         routers: dict[tuple[str, str], tuple[str, str]] = {}
         for file, var, kind, prefix in ns.query("SELECT file, var, kind, prefix FROM {t:routers}"):
             routers[(str(file), str(var))] = (str(kind), str(prefix))
+        # [weftgate.routes_fastapi] app = "pkg.mod:var" names the root app explicitly, which
+        # matters when it is built by a factory (`app = create_app()`) rather than `FastAPI()`.
+        configured = str(ctx.oracle_config(self.name).get("app") or "")
+        if ":" in configured:
+            mod, _, var = configured.partition(":")
+            app_file = file_of_module(ctx, mod.strip())
+            if app_file is not None and var.strip():
+                routers[(app_file, var.strip())] = ("app", "")
         includes: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
         for file, _line, parent, child, prefix in ns.query(
             "SELECT file, line, parent, child, prefix FROM {t:includes}"
@@ -477,6 +485,7 @@ class RoutesFastAPIOracle(BaseOracle):
                         str(hkind),
                         str(style),
                         full,
+                        prefix if kind == "router" else "",
                     )
                 )
         return sorted(out, key=lambda r: (r.method, r.full or "", r.path, r.file, r.line))
@@ -492,6 +501,11 @@ class _Route:
     handler_kind: str
     style: str
     full: str | None  # resolved full path, None if a prefix could not be resolved
+    prefix: str = ""  # the router's own prefix, known even when the chain above is not
+
+    def known_tail(self) -> str:
+        """The part of the path weft is sure about: router prefix plus route path."""
+        return _norm_path(self.prefix + self.path)
 
 
 def _prefix_chains(
@@ -541,6 +555,17 @@ def _norm_path(path: str) -> str:
     return path
 
 
+def _suffix_params_match(tail: str, want: str) -> bool:
+    """``want`` ends with ``tail`` segment-wise, treating ``{param}`` as a wildcard."""
+    pt, pw = tail.strip("/").split("/"), want.strip("/").split("/")
+    if not pt or len(pt) > len(pw):
+        return False
+    return all(
+        x == y or (x.startswith("{") and y.startswith("{"))
+        for x, y in zip(pt, pw[len(pw) - len(pt) :], strict=True)
+    )
+
+
 def _params_match(a: str, b: str) -> bool:
     pa, pb = a.split("/"), b.split("/")
     if len(pa) != len(pb):
@@ -550,7 +575,7 @@ def _params_match(a: str, b: str) -> bool:
     )
 
 
-# --- symbols helpers ---------------------------------------------------------------------------
+# --- symbols helpers ------------------------------------------------------------------------------
 
 
 def _symbol_payload(scan: _Scan) -> dict[str, tuple[str, str]]:
@@ -611,7 +636,7 @@ def _module_file(
     return file_of_module(ctx, module, from_file=from_file)
 
 
-# --- the scanner --------------------------------------------------------------------------
+# --- the scanner ----------------------------------------------------------------------------------
 
 
 def _scan_python(text: str) -> _Scan | None:
@@ -853,7 +878,7 @@ def _extract_regex(region: Region) -> list[Claim]:
 
 
 def describe_routes(ctx: Context) -> list[dict[str, Any]]:
-    """Debug helper: the resolved route table (used by ``weft index``)."""
+    """Debug helper: the resolved route table (used by ``weftgate index``)."""
     oracle = RoutesFastAPIOracle()
     if not oracle._built(ctx):
         return []

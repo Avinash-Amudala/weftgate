@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "weft"
+name = "weftgate"
 dynamic = ["version"]
 description = "A verification gate for coding agents that checks the wiring, not the spelling."
 readme = "README.md"
@@ -21,12 +21,15 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-# Optional accelerators. Each must degrade to UNVERIFIABLE when absent.
+# Optional accelerators. Each must degrade to UNVERIFIABLE when absent. In v0.1 the core
+# uses none of them: treesitter, lsp, and yaml are reserved for the Tier 1 oracles of
+# v0.2, and mcp is used only by the test-suite to drive the stdlib stdio server with the
+# official client.
 treesitter = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.7"]
 lsp = ["python-lsp-server>=1.10"]
 yaml = ["PyYAML>=6.0"]
 mcp = ["mcp>=1.2"]
-all = ["weft[treesitter]", "weft[lsp]", "weft[yaml]", "weft[mcp]"]
+all = ["weftgate[treesitter]", "weftgate[lsp]", "weftgate[yaml]", "weftgate[mcp]"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
@@ -36,37 +39,37 @@ dev = [
 ]
 
 [project.scripts]
-weft = "weft.cli:main"
+weftgate = "weftgate.cli:main"
 
 # Community oracles register under this entry-point group.
-[project.entry-points."weft.oracles"]
-env_vars = "weft.oracles.env_vars:register"
-imports_lockfile = "weft.oracles.imports_lockfile:register"
-routes_fastapi = "weft.oracles.routes_fastapi:register"
+[project.entry-points."weftgate.oracles"]
+env_vars = "weftgate.oracles.env_vars:register"
+imports_lockfile = "weftgate.oracles.imports_lockfile:register"
+routes_fastapi = "weftgate.oracles.routes_fastapi:register"
 
 [project.urls]
-Homepage = "https://github.com/Avinash-Amudala/weft"
-Changelog = "https://github.com/Avinash-Amudala/weft/blob/main/CHANGELOG.md"
-Issues = "https://github.com/Avinash-Amudala/weft/issues"
+Homepage = "https://github.com/Avinash-Amudala/weftgate"
+Changelog = "https://github.com/Avinash-Amudala/weftgate/blob/main/CHANGELOG.md"
+Issues = "https://github.com/Avinash-Amudala/weftgate/issues"
 
 [tool.hatch.version]
-path = "weft/__init__.py"
+path = "weftgate/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["weft"]
+packages = ["weftgate"]
 
 [tool.hatch.build.targets.sdist]
-include = ["weft/", "tests/", "docs/", "scripts/", "README.md", "CHANGELOG.md", "LICENSE",
-           "NOTICE", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md", "weft.toml",
+include = ["weftgate/", "tests/", "docs/", "scripts/", "README.md", "CHANGELOG.md", "LICENSE",
+           "NOTICE", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md", "weftgate.toml",
            ".env.example", "action.yml", ".pre-commit-hooks.yaml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-filterwarnings = ["error::DeprecationWarning:weft.*"]
+filterwarnings = ["error::DeprecationWarning:weftgate.*"]
 
 [tool.coverage.run]
-source = ["weft"]
-omit = ["weft/__main__.py"]
+source = ["weftgate"]
+omit = ["weftgate/__main__.py"]
 
 [tool.coverage.report]
 skip_covered = false

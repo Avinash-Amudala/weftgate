@@ -25,13 +25,13 @@ jobs:
       - run: pip install -e ".[all,dev]"
       - run: ruff check .
       - run: ruff format --check .
-      - run: mypy weft
-      - run: python -m weft.selftest
-      - run: pytest -q --cov=weft --cov-report=term-missing --cov-fail-under=85
+      - run: mypy weftgate
+      - run: python -m weftgate.selftest
+      - run: pytest -q --cov=weftgate --cov-report=term-missing --cov-fail-under=85
       - name: mutation harness (fixture; an upper bound, not a field number)
-        run: weft eval mutate --fixture --seed 13
-      - name: weft audits itself
-        run: weft audit --format=github
+        run: weftgate eval mutate --fixture --seed 13
+      - name: weftgate audits itself
+        run: weftgate audit --format=github
 
   core-only:
     # No optional extras installed: everything heavier than the standard library
@@ -45,9 +45,9 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: python -c "import mcp" && exit 1 || echo "mcp extra absent, as intended"
-      - run: python -m weft.selftest
+      - run: python -m weftgate.selftest
       - run: pytest -q
-      - run: weft audit --format=github
+      - run: weftgate audit --format=github
 
   package:
     # The wheel builds and installs cleanly from scratch, and the console script works.
@@ -61,4 +61,4 @@ jobs:
       - run: python -m build
       - run: twine check dist/*
       - run: pip install dist/*.whl
-      - run: cd / && weft --version && python -m weft.selftest
+      - run: cd / && weftgate --version && python -m weftgate.selftest

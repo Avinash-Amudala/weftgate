@@ -3,9 +3,9 @@
 import pytest
 
 from tests.conftest import write
-from weft.config import Config
-from weft.oracle import Oracle, OracleAPI, file_of_module, module_of_file
-from weft.registry import available_oracles, load_oracles, resolve_registrar
+from weftgate.config import Config
+from weftgate.oracle import Oracle, OracleAPI, file_of_module, module_of_file
+from weftgate.registry import available_oracles, load_oracles, resolve_registrar
 
 
 def test_builtins_are_discoverable_by_name():
@@ -17,7 +17,7 @@ def test_builtins_are_discoverable_by_name():
 
 
 def test_builtin_fallback_without_entry_points(monkeypatch):
-    monkeypatch.setattr("weft.registry.entry_point_registrars", lambda: {})
+    monkeypatch.setattr("weftgate.registry.entry_point_registrars", lambda: {})
     oracles = load_oracles(Config(oracles=["env_vars"]))
     assert list(oracles) == ["env_vars"]
 
@@ -64,9 +64,9 @@ def test_module_file_mapping(tmp_path):
     assert module_of_file("src/pkg/sub/mod.py") == "pkg.sub.mod"
     assert module_of_file("not-a-module.py") is None
     assert module_of_file("README.md") is None
-    from weft.config import Config as _C
-    from weft.oracle import Context
-    from weft.store import Store
+    from weftgate.config import Config as _C
+    from weftgate.oracle import Context
+    from weftgate.store import Store
 
     root = str(tmp_path / "repo")
     write(root, "app/__init__.py", "")

@@ -1,6 +1,6 @@
 """Audit sweep: run the gate over the existing, already-merged codebase and report
 latent broken edges. Reuses the same oracle check paths as the live gate. This is
-both the correctness check and the adoption loop (``weft audit``).
+both the correctness check and the adoption loop (``weftgate audit``).
 
 One sync, then one whole-file Change per source file through
 ``Session.check_change``. Only non-ACCEPT findings are kept in the result (an

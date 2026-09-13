@@ -15,7 +15,7 @@ import sys
 import pytest
 
 from tests.conftest import write
-from weft import cli, mcp_server
+from weftgate import cli, mcp_server
 
 BAD = "import os\nk = os.environ['DATABSE_URL']\nimport requestz\n"
 
@@ -24,7 +24,7 @@ def _repo(tmp_path):
     root = str(tmp_path / "repo")
     write(root, ".env.example", "DATABASE_URL=\nAPI_KEY=\n")
     write(root, "requirements.txt", "requests==2.32.0\n")
-    write(root, "weft.toml", '[weft]\noracles = ["env_vars"]\n')
+    write(root, "weftgate.toml", '[weftgate]\noracles = ["env_vars"]\n')
     write(root, "bad.py", BAD)
     return root
 
@@ -99,7 +99,7 @@ def test_text_and_github_formats_and_exit_codes(tmp_path, capsys):
     assert "REJECT" in out and "did you mean DATABASE_URL" in out and "verdict: reject" in out
     assert cli.main(["--repo", root, "--format", "github", "check", bad]) == 1
     out = capsys.readouterr().out
-    assert out.startswith("::error file=bad.py,line=2,title=weft env_vars::")
+    assert out.startswith("::error file=bad.py,line=2,title=weftgate env_vars::")
     good = write(root, "good.py", "import os\nk = os.environ['API_KEY']\n")
     assert cli.main(["--repo", root, "check", good]) == 0
     assert "ok, no broken wires found" in capsys.readouterr().out
@@ -181,7 +181,7 @@ def test_stdio_server_subprocess_matches_cli(tmp_path, capsys):
     ]
     stdin = _rpc_lines([m for m in msgs if isinstance(m, dict)]) + "this is not json\n"
     proc = subprocess.run(
-        [sys.executable, "-m", "weft.mcp_server"],
+        [sys.executable, "-m", "weftgate.mcp_server"],
         input=stdin,
         capture_output=True,
         text=True,
@@ -192,7 +192,7 @@ def test_stdio_server_subprocess_matches_cli(tmp_path, capsys):
     assert proc.returncode == 0, proc.stderr
     responses = [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
     by_id = {r.get("id"): r for r in responses}
-    assert by_id[1]["result"]["serverInfo"]["name"] == "weft"
+    assert by_id[1]["result"]["serverInfo"]["name"] == "weftgate"
     assert {t["name"] for t in by_id[2]["result"]["tools"]} >= {
         "check_change",
         "check_claim",
@@ -222,7 +222,10 @@ def test_official_mcp_client_drives_the_server(tmp_path, capsys):
 
     async def drive() -> tuple[list[str], dict]:
         params = StdioServerParameters(
-            command=sys.executable, args=["-m", "weft.mcp_server"], cwd=root, env=dict(os.environ)
+            command=sys.executable,
+            args=["-m", "weftgate.mcp_server"],
+            cwd=root,
+            env=dict(os.environ),
         )
         async with stdio_client(params, errlog=errlog) as (read, write_):
             async with mcp.ClientSession(read, write_) as session:
@@ -240,7 +243,7 @@ def test_official_mcp_client_drives_the_server(tmp_path, capsys):
 
 
 def test_global_options_work_after_the_subcommand(tmp_path, capsys):
-    """The pre-commit hook runs `weft check --staged --format=github`; README examples put
+    """The pre-commit hook runs `weftgate check --staged --format=github`; README examples put
     --format after the command too. Both positions must parse and agree."""
     root = _repo(tmp_path)
     bad = os.path.join(root, "bad.py")

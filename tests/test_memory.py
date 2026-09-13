@@ -1,13 +1,13 @@
 """Verified memory's half of the graph: the changed-node ledger, anchors, re-checks,
-and weft's oracles offered through mnemo's plugin protocol."""
+and weftgate's oracles offered through mnemo's plugin protocol."""
 
 import json
 import os
 
 from tests.conftest import write
-from weft import cli, mcp_server, memory
-from weft.eval.fixture import write_fixture
-from weft.gate import Session
+from weftgate import cli, mcp_server, memory
+from weftgate.eval.fixture import write_fixture
+from weftgate.gate import Session
 
 
 def _repo(tmp_path):
@@ -118,7 +118,7 @@ class _FakeApi:
 
 def test_mnemo_plugin_protocol(tmp_path, monkeypatch):
     root, store = _repo(tmp_path)
-    monkeypatch.setenv("WEFT_CACHE", str(tmp_path / "cache"))
+    monkeypatch.setenv("WEFTGATE_CACHE", str(tmp_path / "cache"))
     api = _FakeApi()
     memory.register(api)
     assert set(api.oracles) == {"env", "routes", "imports"}
@@ -141,7 +141,7 @@ def test_mnemo_plugin_protocol(tmp_path, monkeypatch):
     assert "requests" in extract_i("import requests\nfrom fastapi import X\nuse `yaml` here")
     assert check_i("requestz", True, root)["status"] == "reject"
     assert check_i("os", True, root)["status"] == "accept"
-    # A repo weft cannot index never rejects.
+    # A repo weftgate cannot index never rejects.
     assert check("ANYTHING", True, str(tmp_path / "nowhere"))["status"] in (
         "review",
         "unverifiable",

@@ -9,11 +9,11 @@ import sys
 import threading
 
 from tests.conftest import write
-from weft.cli import main as cli_main
-from weft.gate import Session, claims_from_json
-from weft.honesty import Honesty, OutcomeClaim, Policy, grade
-from weft.mcp_server import call_tool
-from weft.types import Level
+from weftgate.cli import main as cli_main
+from weftgate.gate import Session, claims_from_json
+from weftgate.honesty import Honesty, OutcomeClaim, Policy, grade
+from weftgate.mcp_server import call_tool
+from weftgate.types import Level
 
 PY = sys.executable
 
@@ -222,9 +222,9 @@ def test_claim_mode_wiring_and_surfaces(tmp_path, capsys):
     write(root, ".env.example", "A=\n")
     write(
         root,
-        "weft.toml",
+        "weftgate.toml",
         # A TOML literal string ('...') keeps Windows backslashes intact.
-        f"[weft]\noracles = ['env_vars']\n[weft.honesty]\nallow_commands = ['{PY}']\n",
+        f"[weftgate]\noracles = ['env_vars']\n[weftgate.honesty]\nallow_commands = ['{PY}']\n",
     )
     ok = f'{PY} -c "import sys; sys.exit(0)"'
     # "custom-runner" is not allowlisted, so run=True must not execute it; its

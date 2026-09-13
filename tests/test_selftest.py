@@ -1,6 +1,6 @@
 """The self-test is itself a regression check; it must pass and be quiet on success."""
 
-from weft import selftest
+from weftgate import selftest
 
 
 def test_selftest_passes(capsys):

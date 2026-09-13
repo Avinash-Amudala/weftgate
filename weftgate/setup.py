@@ -1,6 +1,6 @@
-"""``weft setup``: detect the stack, write ``weft.toml``, build the index, and
+"""``weftgate setup``: detect the stack, write ``weftgate.toml``, build the index, and
 optionally wire the git pre-commit hook, the Claude Code PreToolUse hook, and the
-MCP server entry. Also the Claude Code hook adapter (``weft hook claude``).
+MCP server entry. Also the Claude Code hook adapter (``weftgate hook claude``).
 
 The hook adapter reads the PreToolUse JSON on stdin, reconstructs the content
 the Edit/Write/MultiEdit would produce, runs the gate on it, and exits 2 (which
@@ -24,20 +24,20 @@ from .config import Config, detect_stack, find_repo_root, repo_config_path
 from .store import Store
 
 PRE_COMMIT = """#!/usr/bin/env bash
-# weft: block a commit only on a proven broken wire (a REJECT verdict).
-if ! command -v weft >/dev/null 2>&1; then
+# weftgate: block a commit only on a proven broken wire (a REJECT verdict).
+if ! command -v weftgate >/dev/null 2>&1; then
   exit 0
 fi
 changed=$(git diff --cached --name-only --diff-filter=ACM)
 [ -z "$changed" ] && exit 0
-weft check --staged --format=github
+weftgate check --staged --format=github
 """
 
 CLAUDE_HOOK = {
     "matcher": "Edit|Write|MultiEdit",
-    "hooks": [{"type": "command", "command": "weft hook claude", "timeout": 60}],
+    "hooks": [{"type": "command", "command": "weftgate hook claude", "timeout": 60}],
 }
-MCP_ENTRY = {"command": "weft", "args": ["mcp"]}
+MCP_ENTRY = {"command": "weftgate", "args": ["mcp"]}
 
 # Project-level MCP config files per agent (merged, never clobbered). Agents whose
 # MCP config is only global get a snippet printed instead.
@@ -47,21 +47,23 @@ AGENT_FILES: dict[str, tuple[str, str]] = {
     "vscode": (".vscode/mcp.json", "servers"),  # VS Code / GitHub Copilot agent mode
 }
 AGENT_SNIPPETS: dict[str, str] = {
-    "codex": ('# ~/.codex/config.toml\n[mcp_servers.weft]\ncommand = "weft"\nargs = ["mcp"]\n'),
+    "codex": (
+        '# ~/.codex/config.toml\n[mcp_servers.weftgate]\ncommand = "weftgate"\nargs = ["mcp"]\n'
+    ),
     "windsurf": (
         "# ~/.codeium/windsurf/mcp_config.json\n"
-        '{"mcpServers": {"weft": {"command": "weft", "args": ["mcp"]}}}\n'
+        '{"mcpServers": {"weftgate": {"command": "weftgate", "args": ["mcp"]}}}\n'
     ),
     "claude-desktop": (
         "# claude_desktop_config.json\n"
-        '{"mcpServers": {"weft": {"command": "weft", '
+        '{"mcpServers": {"weftgate": {"command": "weftgate", '
         '"args": ["mcp"]}}}\n'
     ),
 }
 ALL_AGENTS = tuple(AGENT_FILES) + tuple(AGENT_SNIPPETS)
 
 
-# --- weft setup --------------------------------------------------------------------------
+# --- weftgate setup -------------------------------------------------------------------------------
 
 
 def run(
@@ -87,7 +89,7 @@ def run(
 
     existing = repo_config_path(repo_root)
     if existing is None or force:
-        plan.append(("write", "weft.toml", render_config(stack, find_fastapi_app(repo_root))))
+        plan.append(("write", "weftgate.toml", render_config(stack, find_fastapi_app(repo_root))))
     else:
         plan.append(("keep", os.path.relpath(existing, repo_root), "existing config kept"))
 
@@ -146,8 +148,8 @@ def run(
 
 def render_config(stack: list[str], app: str | None) -> str:
     lines = [
-        "# weft configuration. See docs/DESIGN.md section 12.",
-        "[weft]",
+        "# weftgate configuration. See docs/DESIGN.md section 12.",
+        "[weftgate]",
         'oracles = ["env_vars", "imports_lockfile", "routes_fastapi"]',
         'block_on = "reject"                 # reject | review | never',
         'env_declared_in = [".env.example"]  # extra files/schemas that declare env vars',
@@ -155,7 +157,7 @@ def render_config(stack: list[str], app: str | None) -> str:
     if stack:
         lines.append(f"stack = {json.dumps(stack)}")
     if app:
-        lines += ["", "[weft.routes_fastapi]", f'app = "{app}"']
+        lines += ["", "[weftgate.routes_fastapi]", f'app = "{app}"']
     return "\n".join(lines) + "\n"
 
 
@@ -190,7 +192,7 @@ def merge_claude_settings(existing: dict[str, Any]) -> tuple[dict[str, Any], boo
     pre = list(hooks.get("PreToolUse") or [])
     for entry in pre:
         for h in (entry.get("hooks") or []) if isinstance(entry, dict) else []:
-            if isinstance(h, dict) and "weft hook claude" in str(h.get("command", "")):
+            if isinstance(h, dict) and "weftgate hook claude" in str(h.get("command", "")):
                 return settings, False
     pre.append(json.loads(json.dumps(CLAUDE_HOOK)))
     hooks["PreToolUse"] = pre
@@ -203,9 +205,9 @@ def merge_mcp_config(
 ) -> tuple[dict[str, Any], bool]:
     cfg = dict(existing)
     servers = dict(cfg.get(key) or {})
-    if "weft" in servers:
+    if "weftgate" in servers:
         return cfg, False
-    servers["weft"] = dict(MCP_ENTRY)
+    servers["weftgate"] = dict(MCP_ENTRY)
     cfg[key] = servers
     return cfg, True
 
@@ -255,14 +257,14 @@ def _render_setup(summary: dict[str, Any], plan: list[tuple[str, str, str]]) -> 
         lines.extend("      " + ln for ln in snippet.rstrip("\n").splitlines())
     if not summary.get("agents"):
         lines.append(
-            "  hint   run `weft setup --hooks` to wire git pre-commit, the Claude Code "
+            "  hint   run `weftgate setup --hooks` to wire git pre-commit, the Claude Code "
             "PreToolUse hook, and the MCP server entry; add --agents cursor,vscode,all "
             "for other agents"
         )
     return "\n".join(lines)
 
 
-# --- Claude Code PreToolUse hook adapter -------------------------------------------------
+# --- Claude Code PreToolUse hook adapter ----------------------------------------------------------
 
 
 def claude_hook(repo_root: str, stdin_text: str, store_path: str | None = None) -> int:
@@ -291,21 +293,21 @@ def claude_hook(repo_root: str, stdin_text: str, store_path: str | None = None) 
             result = session.check_change(Change.from_text(rel, content))
         config = session.config
     except Exception as exc:  # noqa: BLE001 - a broken hook must never block work
-        print(f"weft hook: skipped ({exc})", file=sys.stderr)
+        print(f"weftgate hook: skipped ({exc})", file=sys.stderr)
         return 0
     if result.stats.get("blocking"):
         from . import ledger
 
         ledger.record(result, root, "hook")
         print(
-            "weft blocked this edit: it references something that does not resolve.\n"
+            "weftgate blocked this edit: it references something that does not resolve.\n"
             + render_text(result),
             file=sys.stderr,
         )
         return 2
     notes = [f for f in result.findings if f.level.value in ("review", "unverifiable")]
     if notes:
-        context = "weft notes (non-blocking):\n" + render_text(result)
+        context = "weftgate notes (non-blocking):\n" + render_text(result)
         print(
             json.dumps(
                 {

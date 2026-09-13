@@ -557,7 +557,7 @@ class ImportsLockfileOracle(BaseOracle):
             return self.review(
                 claim,
                 f"{spec!r} matches a directory in the repo; probably a bundler path alias "
-                f"weft could not confirm (declare it in tsconfig paths to make it exact)",
+                f"weftgate could not confirm (declare it in tsconfig paths to make it exact)",
             )
         if os.path.isfile(os.path.join(ctx.repo_root, "node_modules", top, "package.json")):
             return self.review(
@@ -657,7 +657,7 @@ class _Index:
         return {d for hits in self.provided.values() for d, _ in hits}
 
 
-# --- extraction -------------------------------------------------------------------------------
+# --- extraction -----------------------------------------------------------------------------------
 
 
 def _extract_python(region: Region) -> list[Claim]:
@@ -869,7 +869,7 @@ def _probably_provides(dist: str, top: str) -> bool:
     return d in (f"py{t}", f"python_{t}", f"{t}_python", f"{t}_py", f"{t}3", f"{t}2")
 
 
-# --- manifests --------------------------------------------------------------------------------
+# --- manifests ------------------------------------------------------------------------------------
 
 
 def _nearest_project_dir(from_file: str, core: dict[str, set[str]]) -> str:

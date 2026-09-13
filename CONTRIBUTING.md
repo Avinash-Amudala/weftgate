@@ -1,8 +1,11 @@
 # Contributing
 
-The fastest way to help is to write an oracle for a stack weft does not cover yet.
-An oracle is one file. Copy `weft/oracles/env_vars.py` as the template and follow
-the checklist in `AGENTS.md` section 6.
+The fastest way to help is to write an oracle for a stack weftgate does not cover yet.
+An oracle is one file. Scaffold it with `python scripts/new-oracle.py <name> --kind <kind>`
+(it writes the oracle and its four tests), read `docs/ORACLES.md`, use
+`weftgate/oracles/env_vars.py` as the worked reference, and follow the checklist in
+`AGENTS.md` section 6. Install the repo's own pre-push check once with
+`bash scripts/dev-hooks.sh`.
 
 ## The rule that gets a PR merged or rejected
 
@@ -21,5 +24,5 @@ See `tests/test_env_vars.py`.
 ## Before you push
 
 ```bash
-ruff check . && mypy weft && python -m weft.selftest && pytest -q
+ruff check . && ruff format --check . && mypy weftgate && python -m weftgate.selftest && pytest -q
 ```

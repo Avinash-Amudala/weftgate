@@ -207,6 +207,64 @@ def _checks(root: str, store: str) -> list[Check]:
             "mutation harness is not deterministic",
         )
 
+    def memory_grounds_and_invalidates() -> None:
+        from . import memory
+
+        env_path = os.path.join(root, ".env.example")
+        with Session(root, store_path=store) as s:
+            s.sync()
+            grounded = memory.anchor(
+                s,
+                "the API reads DATABASE_URL; POST /api/users creates a user (app/users.py)",
+                {"symbols": ["app/handlers.py:health"]},
+            )
+            nodes = {a["node"]: a for a in grounded["anchors"]}
+            for node in (
+                "env:DATABASE_URL",
+                "route:POST /api/users",
+                "file:app/users.py",
+                "symbol:app/handlers.py:health",
+            ):
+                _expect(
+                    nodes.get(node, {}).get("state") == "valid", f"anchor {node}: {nodes.get(node)}"
+                )
+            _expect(memory.check(s, grounded["anchors"])["summary"] == "valid", "fresh anchors")
+            original = open(env_path, encoding="utf-8").read()
+            seq = s.store.head_seq()
+        try:
+            with open(env_path, "w", encoding="utf-8") as fh:
+                fh.write(original.replace("DATABASE_URL=postgres://localhost/app\n", ""))
+            with Session(root, store_path=store) as s:
+                changed = memory.changes(s, since=seq)
+                ops = {c["node"]: c["op"] for c in changed["changes"]}
+                _expect(ops.get("env:DATABASE_URL") == "removed", f"ledger {ops}")
+                _expect(ops.get("file:.env.example") == "changed", f"ledger {ops}")
+                res = memory.check(s, grounded["anchors"], sync=False)
+                by = {a["node"]: a["state"] for a in res["anchors"]}
+                _expect(
+                    res["summary"] == "invalid" and by["env:DATABASE_URL"] == "invalid",
+                    f"after removal: {by}",
+                )
+                _expect(by["route:POST /api/users"] == "valid", "unrelated anchors stay valid")
+        finally:
+            with open(env_path, "w", encoding="utf-8") as fh:
+                fh.write(original)
+        with Session(root, store_path=store) as s:
+            _expect(memory.check(s, grounded["anchors"])["summary"] == "valid", "restored")
+            # The mnemo plugin protocol: a declared false claim rejects, prose only reviews.
+            registered: dict[str, tuple[object, object]] = {}
+
+            class _Api:
+                @staticmethod
+                def register_oracle(kind: str, extract: object, check: object) -> None:
+                    registered[kind] = (extract, check)
+
+            memory.register(_Api)
+            _expect(set(registered) == {"env", "routes", "imports"}, f"plugin kinds {registered}")
+            check_env = registered["env"][1]
+            _expect(check_env("DATABSE_URL", True, root)["status"] == "reject", "declared typo")  # type: ignore[operator]
+            _expect(check_env("DATABSE_URL", False, root)["status"] == "review", "prose typo")  # type: ignore[operator]
+
     return [
         ("index builds", index_builds),
         ("diff mode rejects broken wires with suggestions", diff_mode_rejects_broken_wires),
@@ -219,17 +277,18 @@ def _checks(root: str, store: str) -> list[Check]:
         ("audit finds the planted breakage", audit_finds_the_planted_breakage),
         ("mutation harness has no misses", mutation_harness_has_no_misses),
         ("deterministic", deterministic),
+        ("memory grounds and self-invalidates", memory_grounds_and_invalidates),
     ]
 
 
 def run(verbose: bool = True) -> int:
     failures = 0
-    with tempfile.TemporaryDirectory(prefix="weft-selftest-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="weftgate-selftest-") as tmp:
         root = os.path.join(tmp, "repo")
         os.makedirs(root)
         write_fixture(root, broken=True)
         store = os.path.join(tmp, "index.sqlite")
-        os.environ["WEFT_CACHE"] = os.path.join(tmp, "cache")
+        os.environ["WEFTGATE_CACHE"] = os.path.join(tmp, "cache")
         for name, fn in _checks(root, store):
             try:
                 fn()
@@ -242,7 +301,7 @@ def run(verbose: bool = True) -> int:
     if failures:
         print(f"selftest FAILED: {failures} check(s)")
         return 1
-    print("selftest ok: gate, three oracles, claim mode, surfaces, sync, audit, mutate")
+    print("selftest ok: gate, three oracles, claim mode, surfaces, sync, audit, mutate, memory")
     return 0
 
 

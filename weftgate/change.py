@@ -98,7 +98,7 @@ class Change:
 
     @classmethod
     def from_file(cls, path: str, repo_root: str | None = None) -> Change:
-        """Treat an entire file as added (used by ``weft check <file>`` and audit)."""
+        """Treat an entire file as added (used by ``weftgate check <file>`` and audit)."""
         with open(path, encoding="utf-8", errors="replace") as fh:
             text = fh.read()
         change = cls.from_text(path, text)

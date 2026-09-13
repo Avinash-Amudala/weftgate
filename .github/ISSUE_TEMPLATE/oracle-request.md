@@ -1,6 +1,6 @@
 ---
 name: Oracle request
-about: A relationship weft should verify for a stack it does not cover yet
+about: A relationship weftgate should verify for a stack it does not cover yet
 title: "Oracle: "
 labels: oracle
 ---

@@ -13,7 +13,7 @@ from .config import Config
 from .oracle import Oracle, OracleAPI
 from .oracles import BUILTIN
 
-ENTRY_POINT_GROUP = "weft.oracles"
+ENTRY_POINT_GROUP = "weftgate.oracles"
 Registrar = Callable[[OracleAPI], None]
 
 

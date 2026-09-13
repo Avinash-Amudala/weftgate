@@ -1,4 +1,4 @@
-# Development environment for building weft.
+# Development environment for building weftgate.
 # Claude Code / any agent: `bash scripts/bootstrap.sh` installs the package
 # in editable mode with these plus all optional extras. This file exists so a
 # plain `pip install -r requirements-dev.txt` also works in a pinch.

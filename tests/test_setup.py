@@ -1,19 +1,19 @@
-"""weft setup and the Claude Code PreToolUse hook adapter."""
+"""weftgate setup and the Claude Code PreToolUse hook adapter."""
 
 import json
 import os
 
 from tests.conftest import git_init, have_git, write
-from weft import setup
-from weft.cli import main as cli_main
-from weft.eval.fixture import write_fixture
+from weftgate import setup
+from weftgate.cli import main as cli_main
+from weftgate.eval.fixture import write_fixture
 
 
 def _repo(tmp_path):
     root = str(tmp_path / "repo")
     os.makedirs(root)
     write_fixture(root)
-    os.remove(os.path.join(root, "weft.toml"))
+    os.remove(os.path.join(root, "weftgate.toml"))
     return root
 
 
@@ -21,19 +21,19 @@ def test_setup_writes_config_and_builds_index(tmp_path, capsys):
     root = _repo(tmp_path)
     assert setup.run(root, dry_run=True) == 0
     out = capsys.readouterr().out
-    assert "would write" in out and not os.path.exists(os.path.join(root, "weft.toml"))
+    assert "would write" in out and not os.path.exists(os.path.join(root, "weftgate.toml"))
     assert cli_main(["--repo", root, "--format", "json", "setup"]) == 0
     summary = json.loads(capsys.readouterr().out)
-    assert summary["written"] == ["weft.toml"] and "fastapi" in summary["stack"]
+    assert summary["written"] == ["weftgate.toml"] and "fastapi" in summary["stack"]
     assert summary["index"]["oracles"]["routes_fastapi"]["built"] is True
-    text = open(os.path.join(root, "weft.toml")).read()
+    text = open(os.path.join(root, "weftgate.toml")).read()
     assert 'app = "app.main:app"' in text and 'oracles = ["env_vars"' in text
     # A second run keeps the existing config unless forced.
     assert setup.run(root) == 0
     assert "keep" in capsys.readouterr().out
-    write(root, "weft.toml", '[weft]\noracles = ["env_vars"]\n')
+    write(root, "weftgate.toml", '[weftgate]\noracles = ["env_vars"]\n')
     assert setup.run(root, force=True) == 0
-    assert "routes_fastapi" in open(os.path.join(root, "weft.toml")).read()
+    assert "routes_fastapi" in open(os.path.join(root, "weftgate.toml")).read()
 
 
 def test_setup_hooks_merge_without_clobbering(tmp_path, capsys):
@@ -60,12 +60,12 @@ def test_setup_hooks_merge_without_clobbering(tmp_path, capsys):
     assert settings["permissions"] == {"allow": ["Bash(ls)"]}
     pre = settings["hooks"]["PreToolUse"]
     assert pre[0]["matcher"] == "Bash" and pre[1]["matcher"] == "Edit|Write|MultiEdit"
-    assert pre[1]["hooks"][0]["command"] == "weft hook claude"
+    assert pre[1]["hooks"][0]["command"] == "weftgate hook claude"
     mcp = json.load(open(os.path.join(root, ".mcp.json")))
-    assert set(mcp["mcpServers"]) == {"other", "weft"}
+    assert set(mcp["mcpServers"]) == {"other", "weftgate"}
     if have_git():
         hook = os.path.join(root, ".git", "hooks", "pre-commit")
-        assert os.access(hook, os.X_OK) and "weft check --staged" in open(hook).read()
+        assert os.access(hook, os.X_OK) and "weftgate check --staged" in open(hook).read()
     # Idempotent: running again changes nothing.
     assert setup.run(root, hooks=True) == 0
     assert json.load(open(os.path.join(root, ".claude", "settings.json"))) == settings
@@ -86,7 +86,7 @@ def test_claude_hook_blocks_only_on_reject(tmp_path, capsys):
     bad = {"tool_name": "Write", "tool_input": {"file_path": target, "content": bad_code}}
     assert hook(bad) == 2
     err = capsys.readouterr().err
-    assert "weft blocked" in err and "did you mean DATABASE_URL" in err
+    assert "weftgate blocked" in err and "did you mean DATABASE_URL" in err
     good_code = "import os\nx = os.environ['API_KEY']\n"
     good = {"tool_name": "Write", "tool_input": {"file_path": target, "content": good_code}}
     assert hook(good) == 0 and capsys.readouterr().out == ""
@@ -96,7 +96,7 @@ def test_claude_hook_blocks_only_on_reject(tmp_path, capsys):
     }
     assert hook(soft) == 0
     note = json.loads(capsys.readouterr().out)
-    assert "weft notes" in note["hookSpecificOutput"]["additionalContext"]
+    assert "weftgate notes" in note["hookSpecificOutput"]["additionalContext"]
     # Edit on an existing file reconstructs the new content.
     write(root, "app/new.py", "import os\nx = os.environ['API_KEY']\n")
     edit = {
@@ -158,15 +158,17 @@ def test_setup_agents_write_project_configs_and_print_snippets(tmp_path, capsys)
     assert cli_main(["--repo", root, "--format", "json", "setup", "--agents", "all"]) == 0
     summary = json.loads(capsys.readouterr().out)
     assert set(summary["snippets"]) == {"codex", "windsurf", "claude-desktop"}
-    assert json.load(open(os.path.join(root, ".mcp.json")))["mcpServers"]["weft"]["args"] == ["mcp"]
-    assert "weft" in json.load(open(os.path.join(root, ".cursor", "mcp.json")))["mcpServers"]
+    assert json.load(open(os.path.join(root, ".mcp.json")))["mcpServers"]["weftgate"]["args"] == [
+        "mcp"
+    ]
+    assert "weftgate" in json.load(open(os.path.join(root, ".cursor", "mcp.json")))["mcpServers"]
     vscode = json.load(open(os.path.join(root, ".vscode", "mcp.json")))["servers"]
-    assert set(vscode) == {"other", "weft"}
+    assert set(vscode) == {"other", "weftgate"}
     # No Claude hook without --hooks; text mode prints the snippets.
     assert not os.path.exists(os.path.join(root, ".claude", "settings.json"))
     assert setup.run(root, agents=["codex"]) == 0
     out = capsys.readouterr().out
-    assert "[mcp_servers.weft]" in out
+    assert "[mcp_servers.weftgate]" in out
     try:
         setup.run(root, agents=["nope"])
     except ValueError as exc:

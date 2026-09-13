@@ -1,4 +1,4 @@
-"""``weft doctor``: why is the gate saying what it says? Checks the setup and prints
+"""``weftgate doctor``: why is the gate saying what it says? Checks the setup and prints
 actionable hints: config validity, enabled oracles and their index state, where env
 declarations come from, which lockfiles/manifests were found (and whether any is a
 real lockfile), whether a FastAPI app was found, and which hooks are installed.
@@ -30,10 +30,15 @@ def run(repo_root: str, store_path: str | None = None) -> dict[str, Any]:
             True,
             f"{os.path.relpath(cfg_path, repo_root) if cfg_path else 'defaults'}"
             f" (block_on={config.block_on}, oracles={', '.join(config.oracles)})",
-            "" if cfg_path else "run `weft setup` to write weft.toml",
+            "" if cfg_path else "run `weftgate setup` to write weftgate.toml",
         )
     except ValueError as exc:
-        add("config", False, str(exc), "fix weft.toml; the gate cannot run with an invalid config")
+        add(
+            "config",
+            False,
+            str(exc),
+            "fix weftgate.toml; the gate cannot run with an invalid config",
+        )
         report["ok"] = False
         return report
 
@@ -55,7 +60,7 @@ def run(repo_root: str, store_path: str | None = None) -> dict[str, Any]:
                 built and not err,
                 f"{'built' if built else 'NOT built'}; tables "
                 f"{', '.join(f'{t}={n}' for t, n in sorted(info.get('tables', {}).items()))}",
-                err or ("" if built else "run `weft index --rebuild`"),
+                err or ("" if built else "run `weftgate index --rebuild`"),
             )
         ns = s.store.namespace("env_vars")
         if "env_vars" in s.oracles and ns.exists("decl"):
@@ -117,18 +122,18 @@ def run(repo_root: str, store_path: str | None = None) -> dict[str, Any]:
     hooks = {
         "git pre-commit": os.path.isfile(os.path.join(repo_root, ".git", "hooks", "pre-commit")),
         "Claude Code hook": _mentions(
-            os.path.join(repo_root, ".claude", "settings.json"), "weft hook claude"
+            os.path.join(repo_root, ".claude", "settings.json"), "weftgate hook claude"
         ),
-        ".mcp.json": _mentions(os.path.join(repo_root, ".mcp.json"), '"weft"'),
-        ".cursor/mcp.json": _mentions(os.path.join(repo_root, ".cursor", "mcp.json"), '"weft"'),
-        ".vscode/mcp.json": _mentions(os.path.join(repo_root, ".vscode", "mcp.json"), '"weft"'),
+        ".mcp.json": _mentions(os.path.join(repo_root, ".mcp.json"), '"weftgate"'),
+        ".cursor/mcp.json": _mentions(os.path.join(repo_root, ".cursor", "mcp.json"), '"weftgate"'),
+        ".vscode/mcp.json": _mentions(os.path.join(repo_root, ".vscode", "mcp.json"), '"weftgate"'),
     }
     installed = [k for k, v in hooks.items() if v]
     add(
         "hooks",
         None,
         ", ".join(installed) or "none installed",
-        "" if installed else "run `weft setup --hooks --agents all`",
+        "" if installed else "run `weftgate setup --hooks --agents all`",
     )
     report["ok"] = all(c["ok"] is not False for c in report["checks"])
     return report
@@ -143,7 +148,7 @@ def _mentions(path: str, needle: str) -> bool:
 
 
 def render_text(report: dict[str, Any]) -> str:
-    lines = [f"weft doctor: {report['repo_root']}"]
+    lines = [f"weftgate doctor: {report['repo_root']}"]
     for c in report["checks"]:
         mark = "ok " if c["ok"] else ("!! " if c["ok"] is False else "-- ")
         lines.append(f"  {mark} {c['name']:22} {c['detail']}")

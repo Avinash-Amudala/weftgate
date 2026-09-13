@@ -5,7 +5,7 @@ import os
 import pytest
 
 from tests.conftest import git, git_commit_all, git_init, have_git, write
-from weft.change import Change
+from weftgate.change import Change
 
 DIFF = """\
 diff --git a/app/main.py b/app/main.py

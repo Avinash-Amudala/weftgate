@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from weft.change import Change
-from weft.oracle import BaseOracle, Context, OracleAPI
-from weft.types import Claim, Finding, Location
+from weftgate.change import Change
+from weftgate.oracle import BaseOracle, Context, OracleAPI
+from weftgate.types import Claim, Finding, Location
 
 
 class DummyOracle(BaseOracle):

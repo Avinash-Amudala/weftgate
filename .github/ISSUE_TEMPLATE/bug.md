@@ -13,5 +13,5 @@ labels: bug
 
 **Environment**
 
-- weft version (`weft --version`):
-- `weft index --status` output:
+- weftgate version (`weftgate --version`):
+- `weftgate index --status` output:

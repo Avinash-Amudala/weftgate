@@ -5,11 +5,11 @@ import json
 import os
 
 from tests.conftest import write
-from weft.cli import main as cli_main
-from weft.eval import audit, mutate
-from weft.eval.fixture import write_fixture
-from weft.mcp_server import call_tool
-from weft.types import Level
+from weftgate.cli import main as cli_main
+from weftgate.eval import audit, mutate
+from weftgate.eval.fixture import write_fixture
+from weftgate.mcp_server import call_tool
+from weftgate.types import Level
 
 
 def test_audit_finds_planted_breakage_and_reuses_gate(tmp_path, capsys):

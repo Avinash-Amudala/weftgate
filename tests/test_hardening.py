@@ -4,14 +4,14 @@ import json
 import os
 
 from tests.conftest import write
-from weft import cli, mcp_server
-from weft.change import Change
-from weft.config import Config
-from weft.oracle import Context
-from weft.oracles.env_vars import EnvVarOracle, mask_comments
-from weft.oracles.imports_lockfile import ImportsLockfileOracle
-from weft.store import Store
-from weft.types import Level
+from weftgate import cli, mcp_server
+from weftgate.change import Change
+from weftgate.config import Config
+from weftgate.oracle import Context
+from weftgate.oracles.env_vars import EnvVarOracle, mask_comments
+from weftgate.oracles.imports_lockfile import ImportsLockfileOracle
+from weftgate.store import Store
+from weftgate.types import Level
 
 
 def _ctx(root, oracle, config=None):
@@ -178,7 +178,7 @@ def test_setup_cfg_package_dir_root(tmp_path):
 def test_multi_target_check_cli_mcp_parity(tmp_path, capsys):
     root = str(tmp_path / "repo")
     write(root, ".env.example", "A=\n")
-    write(root, "weft.toml", '[weft]\noracles = ["env_vars"]\n')
+    write(root, "weftgate.toml", '[weftgate]\noracles = ["env_vars"]\n')
     a = write(root, "a.py", "import os\nx = os.environ['A']\n")
     b = write(root, "sub/b.py", "import os\ny = os.environ['B']\n")
     store = str(tmp_path / "i.sqlite")
@@ -236,7 +236,7 @@ def test_manifest_only_absence_reviews_lockfile_absence_rejects(tmp_path):
 
 
 def test_manifest_only_rejects_when_the_environment_matches_the_project(tmp_path):
-    # These distributions are all installed in the test environment, so weft can tell
+    # These distributions are all installed in the test environment, so weftgate can tell
     # the running interpreter *is* the project's: an import installed nowhere is proven.
     root = str(tmp_path / "repo")
     write(root, "pyproject.toml", '[project]\ndependencies = ["pytest", "ruff", "mypy", "build"]\n')
@@ -292,7 +292,7 @@ def test_node_manifest_only_and_framework_aliases(tmp_path):
 
 
 def test_nested_project_root_resolves_cross_module_handlers(tmp_path):
-    from weft.oracles.routes_fastapi import RoutesFastAPIOracle
+    from weftgate.oracles.routes_fastapi import RoutesFastAPIOracle
 
     root = str(tmp_path / "repo")
     write(root, "backend/pyproject.toml", '[project]\ndependencies = ["fastapi"]\n')
@@ -351,7 +351,7 @@ def test_nested_project_root_resolves_cross_module_handlers(tmp_path):
 
 
 def test_harness_handles_multi_line_calls_and_node_candidates(tmp_path):
-    from weft.eval import mutate
+    from weftgate.eval import mutate
 
     root = str(tmp_path / "repo")
     write(root, "requirements.txt", "fastapi==0.115.0\n")
@@ -380,7 +380,7 @@ def test_harness_handles_multi_line_calls_and_node_candidates(tmp_path):
 
 
 def test_coverage_uses_the_projects_mandatory_deps_only(tmp_path):
-    # Mandatory deps are all installed here (they are weft's own dev tools); the optional
+    # Mandatory deps are all installed here (they are weftgate's own dev tools); the optional
     # and dev groups name packages that are not. Coverage must ignore the latter, so the
     # environment still counts as the project's own and a phantom import is proven absent.
     root = str(tmp_path / "repo")

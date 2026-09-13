@@ -4,13 +4,13 @@ resolution, claim mode, star imports, and the unverifiable paths."""
 import os
 
 from tests.conftest import write
-from weft.change import Change
-from weft.config import Config
-from weft.gate import claims_from_json
-from weft.oracle import Context
-from weft.oracles.routes_fastapi import RoutesFastAPIOracle, describe_routes
-from weft.store import Store
-from weft.types import Claim, Level, Location
+from weftgate.change import Change
+from weftgate.config import Config
+from weftgate.gate import claims_from_json
+from weftgate.oracle import Context
+from weftgate.oracles.routes_fastapi import RoutesFastAPIOracle, describe_routes
+from weftgate.store import Store
+from weftgate.types import Claim, Level, Location
 
 MAIN = """\
 from fastapi import FastAPI
@@ -289,4 +289,45 @@ def test_sync_tracks_handler_renames(tmp_path):
     ctx.store.finish_sync(None)
     f = health()
     assert f.level is Level.REJECT and f.suggestions[0] == "healthz"
+    ctx.store.close()
+
+
+def test_configured_app_marks_a_factory_built_app_as_root(tmp_path):
+    """[weftgate.routes_fastapi] app = "pkg.mod:var" names the root app when it is
+    created by a factory, which the FastAPI() heuristic cannot see."""
+    root = str(tmp_path / "repo")
+    write(root, "app/__init__.py", "")
+    write(
+        root,
+        "app/factory.py",
+        "from fastapi import FastAPI\n\n\ndef create_app():\n    return FastAPI()\n",
+    )
+    write(
+        root,
+        "app/users.py",
+        "from fastapi import APIRouter\nrouter = APIRouter(prefix='/users')"
+        "\n\n\n@router.get('/{user_id}')\ndef get_user(user_id: int):\n"
+        "    return {}\n",
+    )
+    write(
+        root,
+        "app/main.py",
+        "from app.factory import create_app\nfrom app.users import router\n"
+        "api = create_app()\napi.include_router(router, prefix='/v1')\n",
+    )
+    claim = Claim("route_handler", "GET /v1/users/{id}", Location(""), source="assertion")
+    ctx = _ctx(root)  # no config: the factory-built `api` is an unknown router kind
+    unresolved = RoutesFastAPIOracle().check(claim, ctx)
+    assert unresolved.level is Level.REVIEW and "prefix" in unresolved.reason
+    ctx.store.close()
+    cfg = Config(per_oracle={"routes_fastapi": {"app": "app.main:api"}})
+    ctx = _ctx(root, cfg)
+    resolved = RoutesFastAPIOracle().check(claim, ctx)
+    assert resolved.level is Level.ACCEPT, resolved.reason
+    assert (
+        RoutesFastAPIOracle()
+        .check(Claim("route_handler", "GET /v1/users", Location(""), source="assertion"), ctx)
+        .level
+        is Level.REJECT
+    )
     ctx.store.close()

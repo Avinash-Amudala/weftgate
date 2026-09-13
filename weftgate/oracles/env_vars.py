@@ -348,7 +348,7 @@ class EnvVarOracle(BaseOracle):
                 claim,
                 f"env var {claim.subject!r} is read, and this repo has no env declaration source "
                 f"at all (no .env.example, settings schema, Dockerfile ENV, or code default); "
-                f"add one, or list your .env under env_declared_in in weft.toml",
+                f"add one, or list your .env under env_declared_in in weftgate.toml",
             )
         sugg = self.suggest(claim, ctx)
         target = self._where_to_declare(ctx)
@@ -366,7 +366,7 @@ class EnvVarOracle(BaseOracle):
         return ".env.example"
 
 
-# --- comment masking for regex-scanned languages ----------------------------------------------
+# --- comment masking for regex-scanned languages --------------------------------------------------
 
 
 def mask_comments(text: str, style: str = "clike") -> str:
@@ -423,7 +423,7 @@ def mask_comments(text: str, style: str = "clike") -> str:
     return "".join(out)
 
 
-# --- precise extraction for whole Python files -------------------------------------------
+# --- precise extraction for whole Python files ----------------------------------------------------
 
 _PY_READ_CALLS = ("os.environ.get", "os.getenv", "environ.get", "getenv")
 _PY_READ_SUBSCRIPTS = ("os.environ", "environ")
@@ -477,7 +477,7 @@ def _extract_python_ast(region: Region) -> list[Claim] | None:
     return claims
 
 
-# --- declaration scanners -----------------------------------------------------------------
+# --- declaration scanners -------------------------------------------------------------------------
 
 
 def _scan_dotenv(text: str) -> list[str]:
@@ -630,7 +630,7 @@ def _str(node: ast.AST | None) -> str | None:
 
 
 def describe_declarations(ctx: Context) -> dict[str, Any]:
-    """Debug helper: where every declared name comes from (used by ``weft index``)."""
+    """Debug helper: where every declared name comes from (used by ``weftgate index``)."""
     oracle = EnvVarOracle()
     declared = oracle._declared(ctx) or {}
     return {name: files for name, files in sorted(declared.items())}

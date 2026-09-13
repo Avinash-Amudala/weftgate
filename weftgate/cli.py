@@ -1,19 +1,19 @@
 """The plain CLI. Identical findings to the MCP server: both call gate.* .
 
 Commands:
-  weft check [<paths>...|-] [--staged|--git]     verify files, directories, or a diff
-  weft check --path REL --content FILE|-          verify content that is not on disk yet
-  weft claim '<json>'|@file|-  [--run]            verify structured claims (claim mode)
-  weft audit [paths...]                           sweep the repo for latent broken edges
-  weft index [--rebuild] [--status] [--show X]    build/refresh the index, show it, or dump it
-  weft memory anchor|check|changes [json]         grounding for verified memory (mnemo)
-  weft doctor                                     explain the setup and what to fix
-  weft ledger [--clear]                           blocked changes caught before they shipped
-  weft suggest KIND SUBJECT                       did-you-mean for one reference
-  weft eval mutate [--seed N] [--fixture]         mutation harness, reproducible
-  weft setup [--hooks] [--agents a,b] [--dry-run] detect stack, write config, build index
-  weft hook claude                                Claude Code PreToolUse hook (stdin JSON)
-  weft mcp                                        start the stdio MCP server
+  weftgate check [<paths>...|-] [--staged|--git]     verify files, directories, or a diff
+  weftgate check --path REL --content FILE|-          verify content that is not on disk yet
+  weftgate claim '<json>'|@file|-  [--run]            verify structured claims (claim mode)
+  weftgate audit [paths...]                           sweep the repo for latent broken edges
+  weftgate index [--rebuild] [--status] [--show X]    build/refresh the index, show it, or dump it
+  weftgate memory anchor|check|changes [json]         grounding for verified memory (mnemo)
+  weftgate doctor                                     explain the setup and what to fix
+  weftgate ledger [--clear]                           blocked changes caught before they shipped
+  weftgate suggest KIND SUBJECT                       did-you-mean for one reference
+  weftgate eval mutate [--seed N] [--fixture]         mutation harness, reproducible
+  weftgate setup [--hooks] [--agents a,b] [--dry-run] detect stack, write config, build index
+  weftgate hook claude                                Claude Code PreToolUse hook (stdin JSON)
+  weftgate mcp                                        start the stdio MCP server
 
 Global options: --repo PATH, --format text|json|github, --store PATH.
 Exit codes: 0 ok (or non-blocking), 1 blocking verdict, 2 usage or config error.
@@ -35,7 +35,7 @@ from .types import GateResult, Level
 FORMATS = ("text", "json", "github")
 
 
-# --- rendering (shared shape with the MCP server via GateResult.to_dict) -------------------
+# --- rendering (shared shape with the MCP server via GateResult.to_dict) --------------------------
 
 
 def render(result: GateResult, fmt: str) -> str:
@@ -76,7 +76,7 @@ def render_github(result: GateResult) -> str:
         loc = f.claim.location
         where = f"file={loc.file}" + (f",line={loc.line}" if loc.line else "")
         msg = f.reason + (f" (did you mean {', '.join(f.suggestions)}?)" if f.suggestions else "")
-        out.append(f"::{kinds[f.level]} {where},title=weft {f.oracle}::{_gh_escape(msg)}")
+        out.append(f"::{kinds[f.level]} {where},title=weftgate {f.oracle}::{_gh_escape(msg)}")
     out.append(f"verdict: {result.verdict.value}")
     return "\n".join(out)
 
@@ -85,7 +85,7 @@ def _gh_escape(text: str) -> str:
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
-# --- argument parsing ------------------------------------------------------------------------
+# --- argument parsing -----------------------------------------------------------------------------
 
 
 def _global_options(parser: argparse.ArgumentParser, top: bool) -> None:
@@ -95,7 +95,7 @@ def _global_options(parser: argparse.ArgumentParser, top: bool) -> None:
     parser.add_argument(
         "--repo",
         default=None if top else default,
-        help="repository root (default: nearest .git or weft.toml)",
+        help="repository root (default: nearest .git or weftgate.toml)",
     )
     parser.add_argument(
         "--format",
@@ -112,11 +112,11 @@ def _global_options(parser: argparse.ArgumentParser, top: bool) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="weft",
+        prog="weftgate",
         description=__doc__.split("\n\n")[0],
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--version", action="version", version=f"weft {__version__}")
+    p.add_argument("--version", action="version", version=f"weftgate {__version__}")
     _global_options(p, top=True)
     sub = p.add_subparsers(dest="command")
 
@@ -180,7 +180,7 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("setup", help="detect stack, write config, build index, wire hooks")
     st.add_argument("--hooks", action="store_true", help="also write git + Claude Code hooks")
     st.add_argument("--dry-run", action="store_true")
-    st.add_argument("--force", action="store_true", help="overwrite an existing weft.toml")
+    st.add_argument("--force", action="store_true", help="overwrite an existing weftgate.toml")
     st.add_argument(
         "--agents",
         default=None,
@@ -199,7 +199,7 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-# --- commands --------------------------------------------------------------------------------
+# --- commands -------------------------------------------------------------------------------------
 
 
 def _repo(args: argparse.Namespace, hint: str | None = None) -> str:
@@ -219,7 +219,7 @@ def _emit(result: GateResult, fmt: str, repo: str = ".", surface: str = "cli") -
 def cmd_check(args: argparse.Namespace) -> int:
     if args.content is not None:
         if not args.path:
-            raise SystemExit("weft check --content needs --path REL")
+            raise SystemExit("weftgate check --content needs --path REL")
         text = sys.stdin.read() if args.content == "-" else _read(args.content)
         repo = _repo(args)
         change = Change.from_text(args.path, text)
@@ -371,7 +371,7 @@ def cmd_memory(args: argparse.Namespace) -> int:
     from . import memory
 
     if args.memory_command not in ("anchor", "check", "changes"):
-        raise SystemExit("usage: weft memory anchor|check|changes")
+        raise SystemExit("usage: weftgate memory anchor|check|changes")
     with gate.Session(_repo(args), store_path=args.store) as session:
         if args.memory_command == "changes":
             out = memory.changes(session, since=args.since)
@@ -432,7 +432,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
     from .eval import mutate
 
     if args.eval_command != "mutate":
-        raise SystemExit("usage: weft eval mutate [--seed N] [--fixture]")
+        raise SystemExit("usage: weftgate eval mutate [--seed N] [--fixture]")
     report = mutate.run(None if args.fixture else _repo(args), seed=args.seed, count=args.count)
     if args.format == "json":
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
@@ -502,14 +502,14 @@ def main(argv: list[str] | None = None) -> int:
         return _COMMANDS[args.command](args)
     except SystemExit as exc:  # our own usage errors carry a message
         if isinstance(exc.code, str):
-            print(f"weft: {exc.code}", file=sys.stderr)
+            print(f"weftgate: {exc.code}", file=sys.stderr)
             return 2
         raise
     except NotImplementedError as exc:
-        print(f"weft: not implemented: {exc}", file=sys.stderr)
+        print(f"weftgate: not implemented: {exc}", file=sys.stderr)
         return 2
     except (ValueError, OSError, RuntimeError) as exc:
-        print(f"weft: {exc}", file=sys.stderr)
+        print(f"weftgate: {exc}", file=sys.stderr)
         return 2
 
 

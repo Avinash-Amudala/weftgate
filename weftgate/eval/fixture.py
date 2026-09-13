@@ -3,7 +3,7 @@ lockfile. Used by the self-test, the mutation harness (``--fixture``), and the
 tests. Deterministic: the same files every time.
 
 Numbers measured on this fixture are upper bounds (the oracles were tuned on
-it); the field number is what ``weft audit`` reports on a user's own repo.
+it); the field number is what ``weftgate audit`` reports on a user's own repo.
 """
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ FILES: dict[str, str] = {
     ".env.example": "DATABASE_URL=postgres://localhost/app\nAPI_KEY=\nREDIS_URL=\nSMTP_HOST=\n",
     "requirements.txt": "fastapi==0.115.0\nuvicorn[standard]==0.30.6\nrequests==2.32.3\n"
     "PyYAML==6.0.2\nsqlalchemy==2.0.35\n",
-    "weft.toml": '[weft]\noracles = ["env_vars", "imports_lockfile", "routes_fastapi"]\n'
-    'block_on = "reject"\n\n[weft.routes_fastapi]\napp = "app.main:app"\n',
+    "weftgate.toml": '[weftgate]\noracles = ["env_vars", "imports_lockfile", "routes_fastapi"]\n'
+    'block_on = "reject"\n\n[weftgate.routes_fastapi]\napp = "app.main:app"\n',
     "app/__init__.py": "",
     "app/config.py": (
         "import os\n\nimport yaml\n\n"

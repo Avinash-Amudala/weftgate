@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 
 PY="${PYTHON:-python3}"
 if ! "$PY" -c 'import sys; assert sys.version_info[:2] >= (3,10)' 2>/dev/null; then
-  echo "weft needs Python 3.10+. Set PYTHON=/path/to/python3.10 and re-run." >&2
+  echo "weftgate needs Python 3.10+. Set PYTHON=/path/to/python3.10 and re-run." >&2
   exit 1
 fi
 
@@ -21,6 +21,6 @@ pip install -e ".[all,dev]"
 
 echo
 echo "Running self-test..."
-python -m weft.selftest
+python -m weftgate.selftest
 echo
 echo "Ready. Activate with:  . .venv/bin/activate"

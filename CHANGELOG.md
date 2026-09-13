@@ -1,22 +1,20 @@
 # Changelog
 
-All notable changes to weft are recorded here. The format follows
+All notable changes to weftgate are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow SemVer.
 
 ## [Unreleased]
 
-### Added
-- Verified memory (the recall consumer, addendum A5) as an integration with mnemo: a
-  changed-node ledger every sync appends to, anchors with content hashes and the
-  grounding commit, re-checks that yield valid/stale/invalid, and weft's oracles as a
-  mnemo verification plugin. `weft memory anchor|check|changes` and the
-  `memory_anchor`, `memory_check`, `memory_changes` MCP tools. See docs/MEMORY.md.
-
-## [0.1.0] - 2026-09-12
+## [0.1.0] - 2026-09-12 (unreleased until the v0.1.0 tag)
 
 The verification gate.
 
 ### Added
+- Verified memory (the recall consumer, addendum A5) as an integration with mnemo: a
+  changed-node ledger every sync appends to, anchors with content hashes and the
+  grounding commit, re-checks that yield valid/stale/invalid, and weftgate's oracles as a
+  mnemo verification plugin. `weftgate memory anchor|check|changes` and the
+  `memory_anchor`, `memory_check`, `memory_changes` MCP tools. See docs/MEMORY.md.
 - Three Tier 0 oracles, standard library only: `env_vars` (reads vs declarations across
   dotenv files, settings schemas, Dockerfile/compose, code defaults), `imports_lockfile`
   (imports vs lockfiles and manifests for Python and Node, with import-name aliases,
@@ -30,7 +28,7 @@ The verification gate.
 - Per-repo SQLite index with atomic per-oracle tables and incremental sync (git diff
   plus untracked files, fingerprint fallback without git).
 - A CLI and a standard-library stdio MCP server with an output-parity test; a Claude
-  Code PreToolUse hook adapter; `weft setup` writing config, index, git pre-commit
+  Code PreToolUse hook adapter; `weftgate setup` writing config, index, git pre-commit
   hook, and MCP config for Claude Code, Cursor, and VS Code; a GitHub Action;
   pre-commit hooks.
 - Measurement: a seeded mutation harness that reports detected, blocked, and

@@ -70,7 +70,7 @@ class Session:
         self.store.forget_sync_cache()
         report: dict[str, dict[str, Any]] = {}
         # Snapshot the nodes a sync can change, so the difference can be recorded for
-        # consumers that ground memories on them (see weft.memory). A first build or a
+        # consumers that ground memories on them (see weftgate.memory). A first build or a
         # forced rebuild has no "before": nothing was grounded on it yet.
         first_build = any(not self.store.is_built(name) for name in self.oracles)
         before = None if (force_rebuild or first_build) else graph_snapshot(self, None)
@@ -237,7 +237,7 @@ class Session:
         return result
 
 
-# --- the graph as node ids ---------------------------------------------------------------------
+# --- the graph as node ids ------------------------------------------------------------------------
 #
 # Node ids are stable strings any consumer can store and compare:
 #   file:<repo-relative path>       env:<NAME>            route:<METHOD> <full path>
@@ -347,7 +347,7 @@ def _short(exc: BaseException) -> str:
     return text[:_SYNC_ERROR_LIMIT]
 
 
-# --- claim intake -----------------------------------------------------------------------------
+# --- claim intake ---------------------------------------------------------------------------------
 
 
 def claims_from_json(data: Any) -> list[Claim]:
@@ -425,7 +425,7 @@ def _claim_from_dict(raw: dict[str, Any], index: int) -> Claim:
     )
 
 
-# --- module-level wrappers (what the CLI and MCP server call) -----------------------------------
+# --- module-level wrappers (what the CLI and MCP server call) -------------------------------------
 
 
 def check_change(repo_root: str, change: Change, store_path: str | None = None) -> GateResult:

@@ -1,4 +1,4 @@
-# AGENTS.md: how to build weft
+# AGENTS.md: how to build weftgate
 
 This file is the contract for any coding agent (Claude Code, Codex, Cursor, Antigravity) implementing this repo. Read it fully before writing code. The complete design is in `docs/DESIGN.md`; this file is the how, that file is the what and why. `docs/ADDENDUM-context-and-memory.md` defines the later phases (the grounded-context surface and verified memory); read it too, but do not build those yet.
 
@@ -17,7 +17,7 @@ If `bootstrap.sh` is missing or fails, do the equivalent by hand:
 ```bash
 python3 -m venv .venv && . .venv/bin/activate
 pip install -e ".[all,dev]"
-python -m weft.selftest
+python -m weftgate.selftest
 ```
 
 Everything you need is declared in `pyproject.toml` and `requirements-dev.txt`. If you find you need another open-source library while building, add it to the correct group in `pyproject.toml` (core stays minimal, heavy things go under an optional extra) and to `requirements-dev.txt` if it is only for development, then re-run the install. Do not add a dependency to the core group unless the tool cannot run without it.
@@ -33,7 +33,7 @@ A verification gate that checks whether the code an agent produced connects corr
 ## 3. Coding standards
 
 - Python 3.10 or newer. Use `match`, modern typing (`list[str]`, `X | None`), and dataclasses.
-- Standard library first. The core (`types`, `config`, `registry`, `oracle`, `store`, `gate`, `change`, `suggest`, `honesty`, `cli`, `mcp_server`) must import nothing outside the standard library. Optional capability goes behind extras (`weft[treesitter]`, `weft[lsp]`, `weft[yaml]`) and must degrade to `UNVERIFIABLE` when the extra is absent, tested with the extra uninstalled.
+- Standard library first. The core (`types`, `config`, `registry`, `oracle`, `store`, `gate`, `change`, `suggest`, `honesty`, `cli`, `mcp_server`) must import nothing outside the standard library. Optional capability goes behind extras (`weftgate[treesitter]`, `weftgate[lsp]`, `weftgate[yaml]`) and must degrade to `UNVERIFIABLE` when the extra is absent, tested with the extra uninstalled.
 - No network calls in the core. Oracles that need the network are opt-in and clearly marked, and are never on the default path.
 - Deterministic. Same repo state and same input give the same findings, in a stable order. The eval harness depends on this.
 - Fully type-annotated. `mypy` and `ruff` must pass clean; they run in CI and in the pre-push check.
@@ -42,7 +42,7 @@ A verification gate that checks whether the code an agent produced connects corr
 ## 4. Repo layout
 
 ```
-weft/
+weftgate/
   __init__.py
   types.py            # Claim, Finding, GateResult, Change, Context, enums. The shared vocabulary.
   config.py           # precedence load, stack detection, cache/db path resolution
@@ -71,7 +71,7 @@ scripts/
   install-hooks.sh    # writes the Claude Code PreToolUse hook + git pre-commit
 .github/workflows/ci.yml
 docs/DESIGN.md
-weft.toml             # example config
+weftgate.toml             # example config
 pyproject.toml
 requirements-dev.txt
 README.md
@@ -164,13 +164,13 @@ Do not start a phase until the previous phase's tests pass.
 ## 9. How to run things
 
 ```bash
-python -m weft.selftest            # offline end-to-end check, run this often
+python -m weftgate.selftest            # offline end-to-end check, run this often
 python -m pytest -q                # unit tests
-ruff check . && mypy weft          # lint and types, must be clean
-weft check path/to/changed_file.py # diff-mode check of a file
-weft audit                         # sweep the current repo for latent broken edges
-weft eval mutate --seed 13         # mutation harness, reproducible
-python -m weft.mcp_server          # start the stdio MCP server
+ruff check . && mypy weftgate          # lint and types, must be clean
+weftgate check path/to/changed_file.py # diff-mode check of a file
+weftgate audit                         # sweep the current repo for latent broken edges
+weftgate eval mutate --seed 13         # mutation harness, reproducible
+python -m weftgate.mcp_server          # start the stdio MCP server
 ```
 
 ## 10. Guardrails, restated because they are load-bearing

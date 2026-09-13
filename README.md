@@ -1,8 +1,8 @@
-# weft
+# weftgate
 
 **A verification gate for coding agents that checks the wiring, not the spelling.**
 
-[![ci](https://github.com/Avinash-Amudala/weft/actions/workflows/ci.yml/badge.svg)](https://github.com/Avinash-Amudala/weft/actions/workflows/ci.yml)
+[![ci](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml/badge.svg)](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.10%E2%80%933.13-blue.svg)](pyproject.toml)
 
@@ -12,12 +12,12 @@ declared nowhere. The import names a package that is not in your lockfile. A lan
 server says all of it is fine, because every symbol it can see exists. What is broken is
 the connection between them.
 
-weft reconstructs those connections from the repository's own artifacts and checks them,
+weftgate reconstructs those connections from the repository's own artifacts and checks them,
 before the code ships. This is real output, on the small fixture repo the self-test
 builds, with one wire broken per oracle:
 
 ```text
-$ weft audit
+$ weftgate audit
 Scanned 8 files. 3 broken wires found, 0 to review:
 
   REJECT       app/broken.py:3                  import 'requestz' is not in requirements.txt or the standard library (slopsquat risk)   (did you mean requests?)
@@ -32,7 +32,7 @@ Scanned 8 files. 3 broken wires found, 0 to review:
 The same gate as JSON, abridged to one finding (the MCP tools return exactly this shape):
 
 ```text
-$ weft check app/broken.py --format=json
+$ weftgate check app/broken.py --format=json
 {
   "verdict": "reject",
   "stats": {
@@ -64,13 +64,13 @@ $ weft check app/broken.py --format=json
 }
 ```
 
-Run it on your own repo. On six public repositories it had never seen, weft found nine
+Run it on your own repo. On six public repositories it had never seen, weftgate found nine
 latent broken wires in one of them and zero false rejects across all six; the numbers,
 the method, and the commits are in [docs/FIELD-RESULTS.md](docs/FIELD-RESULTS.md).
 
-## Why weft is different
+## Why weftgate is different
 
-There are good tools that check whether a symbol exists. weft is not another one. It
+There are good tools that check whether a symbol exists. weftgate is not another one. It
 checks the edges above symbol existence: route to handler, env var to declaration,
 import to lockfile, router to the module that defines it. Symbol existence is the floor;
 the edges are the product.
@@ -80,7 +80,7 @@ the edges are the product.
 | Level | Meaning | Blocks | Example |
 |---|---|---|---|
 | `accept` | resolved, or nothing checkable | no | the env var is in `.env.example` |
-| `review` | a soft miss weft cannot fully resolve | no | `os.environ[key]` with a computed key; an import absent from a manifest that has no lockfile |
+| `review` | a soft miss weftgate cannot fully resolve | no | `os.environ[key]` with a computed key; an import absent from a manifest that has no lockfile |
 | `reject` | a hard claim is provably false | **yes** | `os.environ["DATABSE_URL"]` when only `DATABASE_URL` is declared |
 | `unverifiable` | the oracle could not run | no | no lockfile in the repo; index not built |
 
@@ -95,15 +95,15 @@ wires it stopped before they shipped.
 
 ## Install
 
-> The distribution name `weft` is taken on PyPI by an unrelated project, so
-> `pip install weft` installs the wrong thing today. Until the rename
+> The distribution name `weftgate` is taken on PyPI by an unrelated project, so
+> `pip install weftgate` installs the wrong thing today. Until the rename
 > (`scripts/rename.sh <newname>`) and the first release, install from the repository:
 
 ```bash
-pip install git+https://github.com/Avinash-Amudala/weft.git
-weft setup                  # detects your stack, writes weft.toml, builds the index
-weft setup --hooks --agents all   # + git pre-commit, Claude Code hook, MCP config for every agent
-weft doctor                 # explains what the gate can and cannot verify in this repo
+pip install git+https://github.com/Avinash-Amudala/weftgate.git
+weftgate setup                  # detects your stack, writes weftgate.toml, builds the index
+weftgate setup --hooks --agents all   # + git pre-commit, Claude Code hook, MCP config for every agent
+weftgate doctor                 # explains what the gate can and cannot verify in this repo
 ```
 
 From a checkout, `bash scripts/bootstrap.sh` creates a venv, installs every extra, and
@@ -111,21 +111,21 @@ runs the offline self-test.
 
 ## Use it from your agent
 
-weft is an MCP server and an identical CLI, so it works the same everywhere. The MCP
+weftgate is an MCP server and an identical CLI, so it works the same everywhere. The MCP
 server is standard-library only; no extra is needed to run it.
 
-**Claude Code** (`.mcp.json`, written by `weft setup --agents claude`) plus a PreToolUse
-hook that vets every Edit and Write before it lands (`weft setup --hooks`):
+**Claude Code** (`.mcp.json`, written by `weftgate setup --agents claude`) plus a PreToolUse
+hook that vets every Edit and Write before it lands (`weftgate setup --hooks`):
 
 ```json
 {
-  "mcpServers": { "weft": { "command": "weft", "args": ["mcp"] } }
+  "mcpServers": { "weftgate": { "command": "weftgate", "args": ["mcp"] } }
 }
 ```
 
 **Cursor** (`.cursor/mcp.json`) and **VS Code** (`.vscode/mcp.json`, key `servers`):
-`weft setup --agents cursor,vscode`. **Codex**, **Windsurf**, and **Claude Desktop**
-keep MCP config globally; `weft setup --agents codex,windsurf,claude-desktop` prints the
+`weftgate setup --agents cursor,vscode`. **Codex**, **Windsurf**, and **Claude Desktop**
+keep MCP config globally; `weftgate setup --agents codex,windsurf,claude-desktop` prints the
 snippet to paste.
 
 Tools: `check_change` (a file, new content, a diff, or the staged changes),
@@ -135,15 +135,15 @@ by evidence), `audit`, `suggest`, `index_status`, `index`.
 ## Use it from the command line, hooks, and CI
 
 ```bash
-weft check app/main.py other.py       # files or directories
-git diff | weft check -               # a unified diff on stdin
-weft check --staged                   # what is about to be committed
-weft check --path app/x.py --content new.py   # content that is not on disk yet
-weft claim '[{"kind":"route","method":"POST","path":"/users","handler":"users.create"}]'
-weft audit                            # sweep the whole repo for latent broken wires
-weft eval mutate --seed 13            # the mutation harness, reproducible
-weft index --show routes              # the resolved route table (or env, imports)
-weft ledger                           # blocked changes caught before they shipped
+weftgate check app/main.py other.py       # files or directories
+git diff | weftgate check -               # a unified diff on stdin
+weftgate check --staged                   # what is about to be committed
+weftgate check --path app/x.py --content new.py   # content that is not on disk yet
+weftgate claim '[{"kind":"route","method":"POST","path":"/users","handler":"users.create"}]'
+weftgate audit                            # sweep the whole repo for latent broken wires
+weftgate eval mutate --seed 13            # the mutation harness, reproducible
+weftgate index --show routes              # the resolved route table (or env, imports)
+weftgate ledger                           # blocked changes caught before they shipped
 ```
 
 Exit code 1 means a blocking verdict, 2 a usage or config error. `--format=json` prints
@@ -152,7 +152,7 @@ exactly what the MCP tools return; `--format=github` prints workflow annotations
 **GitHub Action**, on the pull request diff:
 
 ```yaml
-- uses: Avinash-Amudala/weft@main
+- uses: Avinash-Amudala/weftgate@main
   with:
     mode: check          # or: audit
 ```
@@ -161,10 +161,10 @@ exactly what the MCP tools return; `--format=github` prints workflow annotations
 
 ```yaml
 repos:
-  - repo: https://github.com/Avinash-Amudala/weft
+  - repo: https://github.com/Avinash-Amudala/weftgate
     rev: main
     hooks:
-      - id: weft-check
+      - id: weftgate-check
 ```
 
 Both block only on a `reject`.
@@ -197,31 +197,31 @@ The same graph the gate builds grounds an agent's memory. With
 graph nodes (files, env vars, routes, packages, symbols) with content hashes; when a
 sync sees those nodes change, the memory goes stale, is re-verified through the
 oracles, and is flagged or down-ranked at recall instead of being served as fact.
-weft's oracles also gate `remember`, so a memory with a typo'd env var is refused with
-a suggestion. `weft memory anchor|check|changes` and the matching MCP tools are the
+weftgate's oracles also gate `remember`, so a memory with a typo'd env var is refused with
+a suggestion. `weftgate memory anchor|check|changes` and the matching MCP tools are the
 whole interface; [docs/MEMORY.md](docs/MEMORY.md) has the mechanism.
 
 ## Configuration
 
 ```toml
-# weft.toml
-[weft]
+# weftgate.toml
+[weftgate]
 oracles = ["env_vars", "imports_lockfile", "routes_fastapi"]   # names, or dotted paths to plugins
 block_on = "reject"                  # reject | review | never
 env_declared_in = [".env.example", "config/settings.py"]   # extra declaration sources
 exclude = ["fixtures"]               # extra directories to skip
 
-[weft.env_vars]
+[weftgate.env_vars]
 ambient = ["MY_PLATFORM_VAR"]        # never reject these
 
-[weft.honesty]
+[weftgate.honesty]
 allow_commands = ["make verify"]     # test commands claim mode may re-run with --run
 allow_hosts = ["api.local"]          # hosts claim mode may probe with --run
 ```
 
-Precedence: `WEFT_*` environment variables, then the repo's `weft.toml` or `.weft.json`,
-then `~/.config/weft/weft.toml`, then defaults. The index lives under `~/.cache/weft/`
-(`WEFT_CACHE` overrides).
+Precedence: `WEFTGATE_*` environment variables, then the repo's `weftgate.toml` or `.weftgate.json`,
+then `~/.config/weftgate/weftgate.toml`, then defaults. The index lives under `~/.cache/weftgate/`
+(`WEFTGATE_CACHE` overrides).
 
 ## Status
 

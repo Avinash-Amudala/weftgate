@@ -5,7 +5,7 @@ index_status, index.
 Standard library only: a minimal newline-delimited JSON-RPC 2.0 loop that speaks
 the MCP handshake (``initialize``, ``notifications/initialized``, ``ping``,
 ``tools/list``, ``tools/call``). No optional extra is needed to serve; the
-``weft[mcp]`` extra is only used by the tests to drive this server with the
+``weftgate[mcp]`` extra is only used by the tests to drive this server with the
 official client. Every tool handler is a pure function (:func:`call_tool`) that
 returns exactly the dict the CLI prints as JSON.
 """
@@ -22,7 +22,7 @@ from .change import Change
 from .config import find_repo_root
 
 PROTOCOL_VERSION = "2025-06-18"
-SERVER_INFO = {"name": "weft", "version": __version__}
+SERVER_INFO = {"name": "weftgate", "version": __version__}
 
 _REPO_PROP = {"type": "string", "description": "repository root (default: cwd's repo)"}
 
@@ -260,7 +260,7 @@ def _change_from_args(args: dict[str, Any], repo: str) -> Change:
     )
 
 
-# --- JSON-RPC plumbing -----------------------------------------------------------------------
+# --- JSON-RPC plumbing ----------------------------------------------------------------------------
 
 
 def handle_message(
@@ -282,9 +282,12 @@ def handle_message(
                     "capabilities": {"tools": {"listChanged": False}},
                     "serverInfo": SERVER_INFO,
                     "instructions": (
-                        "weft verifies that code wires to the repo's own declarations. "
+                        "weftgate verifies that code wires to the repo's own declarations. "
                         "Call check_change before writing a file; only a 'reject' verdict "
-                        "is a proven broken wire."
+                        "is a proven broken wire. check_claim grades stated claims and "
+                        "outcomes by evidence, audit sweeps the repo, suggest offers "
+                        "did-you-mean names, and memory_anchor / memory_check / "
+                        "memory_changes ground a memory on the code graph."
                     ),
                 }
             case "ping":

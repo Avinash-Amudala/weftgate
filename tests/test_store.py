@@ -7,13 +7,13 @@ import time
 import pytest
 
 from tests.conftest import git, git_commit_all, git_init, have_git, write
-from weft.store import Store, cache_path
+from weftgate.store import Store, cache_path
 
 needs_git = pytest.mark.skipif(not have_git(), reason="git not installed")
 
 
 def test_cache_path_honours_weft_cache(tmp_path, monkeypatch):
-    monkeypatch.setenv("WEFT_CACHE", str(tmp_path / "c"))
+    monkeypatch.setenv("WEFTGATE_CACHE", str(tmp_path / "c"))
     p = cache_path(str(tmp_path / "repo"))
     assert p.startswith(str(tmp_path / "c")) and p.endswith(".sqlite")
     assert cache_path(str(tmp_path / "repo")) == p  # deterministic
@@ -142,3 +142,43 @@ def test_sync_files_without_git(tmp_path):
     store.forget_sync_cache()
     assert store.sync_files(None) == []
     store.close()
+
+
+def test_nested_failure_can_be_caught_without_committing_inner_writes(tmp_path):
+    with Store(str(tmp_path), path=":memory:") as store:
+        with store.transaction():
+            store.set_meta("outer", "kept")
+            with pytest.raises(RuntimeError), store.transaction():
+                store.set_meta("inner", "must rollback")
+                raise RuntimeError("inner failed")
+        assert store.get_meta("outer") == "kept"
+        assert store.get_meta("inner") is None
+
+
+def test_namespace_names_do_not_match_sql_wildcards(tmp_path):
+    with Store(str(tmp_path), path=":memory:") as store:
+        store.namespace("a_b").rebuild("rows", "file TEXT", [("one",)])
+        store.namespace("axb").rebuild("rows", "file TEXT", [("two",)])
+        assert store.namespace("a_b").tables() == ["rows"]
+        store.namespace("a_b").drop_all()
+        assert store.namespace("axb").count("rows") == 1
+
+
+@needs_git
+def test_sync_detects_reverted_worktree_and_removed_untracked_file(tmp_path):
+    root = str(tmp_path)
+    git_init(root)
+    write(root, "a.py", "x = 1\n")
+    commit = git_commit_all(root)
+    with Store(root, path=":memory:") as store:
+        store.sync_files(None)
+        store.finish_sync(commit)
+        write(root, "a.py", "x = 2\n")
+        write(root, "new.py", "y = 2\n")
+        assert store.sync_files(commit) == ["a.py", "new.py"]
+        store.finish_sync(commit)
+        assert store.sync_files(commit) == []
+        store.forget_sync_cache()
+        git(root, "restore", "a.py")
+        os.remove(tmp_path / "new.py")
+        assert store.sync_files(commit) == ["a.py", "new.py"]

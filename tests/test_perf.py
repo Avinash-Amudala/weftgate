@@ -5,9 +5,9 @@ the fingerprint fallback, the slower path, is what gets timed)."""
 import os
 import time
 
-from weft.change import Change
-from weft.gate import Session
-from weft.types import Level
+from weftgate.change import Change
+from weftgate.gate import Session
+from weftgate.types import Level
 
 
 def _big_repo(root: str, n: int) -> None:

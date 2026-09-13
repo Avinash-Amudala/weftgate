@@ -1,4 +1,4 @@
-"""Per-repo SQLite index. One db per repo under ``~/.cache/weft/``. Each oracle
+"""Per-repo SQLite index. One db per repo under ``~/.cache/weftgate/``. Each oracle
 gets a namespaced place to write, a ``meta`` table records the schema version
 and the commit the index was built at, and ``sync_files`` returns what changed
 since that commit plus the working-tree diff so oracles can reindex only that.
@@ -32,10 +32,10 @@ _GIT_TIMEOUT = 30
 
 
 def cache_dir() -> str:
-    base = os.environ.get("WEFT_CACHE")
+    base = os.environ.get("WEFTGATE_CACHE")
     if not base:
         xdg = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
-        base = os.path.join(xdg, "weft")
+        base = os.path.join(xdg, "weftgate")
     os.makedirs(base, exist_ok=True)
     return base
 
@@ -128,20 +128,23 @@ class Store:
     @contextmanager
     def transaction(self) -> Iterator[None]:
         """Nested-safe explicit transaction. Rolls back on any exception."""
-        if self._depth == 0:
-            self.db.execute("BEGIN IMMEDIATE")
+        depth = self._depth
+        savepoint = f"weftgate_tx_{depth}"
+        self.db.execute("BEGIN IMMEDIATE" if depth == 0 else f"SAVEPOINT {savepoint}")
         self._depth += 1
         try:
             yield
         except BaseException:
-            self._depth -= 1
-            if self._depth == 0:
+            if depth == 0:
                 self.db.execute("ROLLBACK")
+            else:
+                self.db.execute(f"ROLLBACK TO SAVEPOINT {savepoint}")
+                self.db.execute(f"RELEASE SAVEPOINT {savepoint}")
             raise
         else:
+            self.db.execute("COMMIT" if depth == 0 else f"RELEASE SAVEPOINT {savepoint}")
+        finally:
             self._depth -= 1
-            if self._depth == 0:
-                self.db.execute("COMMIT")
 
     # --- meta ------------------------------------------------------------------------
 
@@ -328,7 +331,13 @@ class Store:
         if since_commit in self._sync_cache:
             return list(self._sync_cache[since_commit])
         changed = self._git_changed(since_commit) if self._valid_commit(since_commit) else None
-        if changed is None:
+        # Compare with the state actually indexed, including uncommitted edits.
+        # A diff against HEAD alone misses restoring a dirty file to HEAD and
+        # deleting a previously indexed untracked file.
+        if changed is None or (
+            self.get_meta("fingerprints_ready") == "1"
+            and since_commit == (self.get_meta("build_commit") or None)
+        ):
             changed = self._scan_changed()
         self._sync_cache[since_commit] = changed
         return list(changed)
@@ -378,10 +387,11 @@ class Store:
         """Persist the post-sync state: the build commit and, when there is no commit
         to diff against next time, the file fingerprints. Call after every oracle
         synced (or built) successfully."""
-        if not self._valid_commit(commit) and self._pending_files is None:
+        if self._pending_files is None:
             self._pending_files = self._fingerprints()
         with self.transaction():
             self.set_meta("build_commit", commit or "")
+            self.set_meta("fingerprints_ready", "1")
             if self._pending_files is not None:
                 self.db.execute("DELETE FROM files")
                 self.db.executemany(
@@ -456,8 +466,8 @@ class Namespace:
 
     def tables(self) -> list[str]:
         rows = self.store.db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ? ORDER BY name",
-            (f"{self.oracle}__%",),
+            "SELECT name FROM sqlite_master WHERE type='table' AND name GLOB ? ORDER BY name",
+            (f"{self.oracle}__*",),
         ).fetchall()
         prefix = f"{self.oracle}__"
         return [str(r[0])[len(prefix) :] for r in rows]

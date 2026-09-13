@@ -17,7 +17,7 @@ import os
 import sys
 from typing import Any, TextIO
 
-from . import __version__, gate, ledger
+from . import __version__, gate, ledger, memory
 from .change import Change
 from .config import find_repo_root
 
@@ -107,6 +107,52 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": {"type": "object", "properties": {"repo": _REPO_PROP}},
     },
     {
+        "name": "memory_anchor",
+        "description": (
+            "Ground a memory on the repo's graph: anchors (node id, content hash, commit) "
+            "for the files, env vars, routes, imports, and symbols it mentions or declares. "
+            "Store the anchors with the memory; check them later with memory_check."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": _REPO_PROP,
+                "text": {"type": "string", "description": "the memory's prose"},
+                "claims": {
+                    "type": "object",
+                    "description": "declared claims: files, env, routes, imports, symbols",
+                },
+            },
+        },
+    },
+    {
+        "name": "memory_check",
+        "description": (
+            "Re-derive the state of stored anchors now: valid, stale (content changed), or "
+            "invalid (the node no longer resolves). summary is the memory's overall state."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "repo": _REPO_PROP,
+                "anchors": {"type": "array", "items": {"type": "object"}},
+            },
+            "required": ["anchors"],
+        },
+    },
+    {
+        "name": "memory_changes",
+        "description": (
+            "Graph nodes that changed since a sequence number (files, env declarations, "
+            "routes, packages, symbols), so a memory store can mark grounded memories stale "
+            "in O(changes)."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {"repo": _REPO_PROP, "since": {"type": "integer"}},
+        },
+    },
+    {
         "name": "index",
         "description": "Build or refresh the per-repo index (incremental unless rebuild=true).",
         "inputSchema": {
@@ -166,6 +212,18 @@ def call_tool(
                 return s.status()
         case "index":
             return gate.index(repo, rebuild=bool(args.get("rebuild", False)), store_path=store_path)
+        case "memory_anchor":
+            with gate.Session(repo, store_path=store_path) as s:
+                return memory.anchor(s, str(args.get("text", "")), args.get("claims"))
+        case "memory_check":
+            anchors = args.get("anchors")
+            if not isinstance(anchors, list):
+                raise ToolError("memory_check needs 'anchors' (a list)")
+            with gate.Session(repo, store_path=store_path) as s:
+                return memory.check(s, anchors)
+        case "memory_changes":
+            with gate.Session(repo, store_path=store_path) as s:
+                return memory.changes(s, since=int(args.get("since", 0) or 0))
         case _:
             raise ToolError(f"unknown tool {name!r}")
 

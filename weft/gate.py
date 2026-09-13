@@ -50,6 +50,7 @@ class Session:
         )
         self._synced = False
         self.sync_errors: dict[str, str] = {}
+        self.last_changes: list[tuple[str, str]] = []  # (node, op) recorded by the last sync
 
     def close(self) -> None:
         self.store.close()
@@ -68,6 +69,11 @@ class Session:
         commit = self.store.current_commit()
         self.store.forget_sync_cache()
         report: dict[str, dict[str, Any]] = {}
+        # Snapshot the nodes a sync can change, so the difference can be recorded for
+        # consumers that ground memories on them (see weft.memory). A first build or a
+        # forced rebuild has no "before": nothing was grounded on it yet.
+        first_build = any(not self.store.is_built(name) for name in self.oracles)
+        before = None if (force_rebuild or first_build) else graph_snapshot(self, None)
         for name, oracle in self.oracles.items():
             version = str(getattr(oracle, "version", "1"))
             fresh = (
@@ -96,6 +102,13 @@ class Session:
                     action = "failed"
                     self.sync_errors[name] = _short(second or first)
             report[name] = {"action": action, **self.store.oracle_status(name)}
+        if before is not None:
+            changed_files = before.get("changed_files", [])
+            after = graph_snapshot(self, changed_files=changed_files)
+            self.last_changes = diff_snapshots(before, after)
+            self.store.record_changes(commit, self.last_changes)
+        else:
+            self.last_changes = []
         self.store.finish_sync(commit)
         self.ctx.git_commit = commit
         self._synced = True
@@ -222,6 +235,73 @@ class Session:
         result = GateResult.build(deduped, stats)
         result.stats["blocking"] = blocks(result, self.config)
         return result
+
+
+# --- the graph as node ids ---------------------------------------------------------------------
+#
+# Node ids are stable strings any consumer can store and compare:
+#   file:<repo-relative path>       env:<NAME>            route:<METHOD> <full path>
+#   symbol:<file>:<name>            dist:<lang>:<name>
+
+
+def graph_snapshot(session: Session, changed_files: list[str] | None) -> dict[str, Any]:
+    """The node sets a sync can change. ``changed_files`` limits the symbol snapshot
+    to the files about to be re-scanned (the whole symbol table is large); None
+    means "work it out from the store"."""
+    store = session.store
+    if changed_files is None:
+        since = store.get_meta("build_commit") or None
+        try:
+            changed_files = store.sync_files(since)
+        except Exception:  # noqa: BLE001 - never let bookkeeping break the gate
+            changed_files = []
+    snap: dict[str, Any] = {
+        "changed_files": list(changed_files),
+        "env": set(),
+        "routes": set(),
+        "dists": set(),
+        "symbols": set(),
+    }
+    env = store.namespace("env_vars")
+    if env.exists("decl"):
+        snap["env"] = {f"env:{r[0]}" for r in env.query("SELECT DISTINCT name FROM {t:decl}")}
+    imports = store.namespace("imports_lockfile")
+    if imports.exists("provided"):
+        snap["dists"] = {
+            f"dist:{r[0]}:{r[1]}"
+            for r in imports.query("SELECT DISTINCT lang, dist FROM {t:provided}")
+        }
+    routes = store.namespace("routes_fastapi")
+    if routes.exists("routes"):
+        oracle = session.oracles.get("routes_fastapi")
+        table = getattr(oracle, "_route_table", None)
+        if table is not None:
+            try:
+                snap["routes"] = {
+                    f"route:{r.method} {r.full}" for r in table(session.ctx) if r.full is not None
+                }
+            except Exception:  # noqa: BLE001
+                snap["routes"] = set()
+        if changed_files:
+            marks = ",".join("?" * len(changed_files))
+            snap["symbols"] = {
+                f"symbol:{r[0]}:{r[1]}"
+                for r in routes.query(
+                    "SELECT file, name FROM {t:symbols} WHERE kind IN ('def', 'class') "
+                    f"AND file IN ({marks})",
+                    changed_files,
+                )
+            }
+    return snap
+
+
+def diff_snapshots(before: dict[str, Any], after: dict[str, Any]) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = [(f"file:{f}", "changed") for f in before.get("changed_files", [])]
+    for key in ("env", "routes", "dists", "symbols"):
+        b, a = before.get(key, set()), after.get(key, set())
+        out.extend((node, "removed") for node in b - a)
+        out.extend((node, "added") for node in a - b)
+    return sorted(set(out))
 
 
 def blocks(result: GateResult, config: Config) -> bool:

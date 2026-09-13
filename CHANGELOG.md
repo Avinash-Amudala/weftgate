@@ -5,6 +5,13 @@ All notable changes to weft are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Verified memory (the recall consumer, addendum A5) as an integration with mnemo: a
+  changed-node ledger every sync appends to, anchors with content hashes and the
+  grounding commit, re-checks that yield valid/stale/invalid, and weft's oracles as a
+  mnemo verification plugin. `weft memory anchor|check|changes` and the
+  `memory_anchor`, `memory_check`, `memory_changes` MCP tools. See docs/MEMORY.md.
+
 ## [0.1.0] - 2026-09-12
 
 The verification gate.

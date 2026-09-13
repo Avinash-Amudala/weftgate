@@ -190,6 +190,17 @@ Both block only on a `reject`.
 More stacks are added one oracle at a time. Writing one is an afternoon:
 [docs/ORACLES.md](docs/ORACLES.md) and `python scripts/new-oracle.py <name> --kind <kind>`.
 
+## Verified memory (with mnemo)
+
+The same graph the gate builds grounds an agent's memory. With
+[mnemo](https://github.com/Avinash-Amudala/mnemo) installed, every memory is anchored on
+graph nodes (files, env vars, routes, packages, symbols) with content hashes; when a
+sync sees those nodes change, the memory goes stale, is re-verified through the
+oracles, and is flagged or down-ranked at recall instead of being served as fact.
+weft's oracles also gate `remember`, so a memory with a typo'd env var is refused with
+a suggestion. `weft memory anchor|check|changes` and the matching MCP tools are the
+whole interface; [docs/MEMORY.md](docs/MEMORY.md) has the mechanism.
+
 ## Configuration
 
 ```toml
@@ -223,8 +234,9 @@ Windsurf, and Claude Desktop. See [CHANGELOG.md](CHANGELOG.md).
 Before the first release: the rename (`scripts/rename.sh`), then `git tag v0.1.0`
 triggers the release workflow (PyPI trusted publishing plus a GitHub release).
 
-Next: Django, Flask, Express, and Next.js route oracles, then the grounded-context surface
-and verified memory described in [docs/ADDENDUM-context-and-memory.md](docs/ADDENDUM-context-and-memory.md).
+Verified memory (addendum v0.3) ships as the mnemo integration above. Next: Django, Flask,
+Express, and Next.js route oracles, then the grounded-context surface (`resolve`,
+`neighbors`, `card`) described in [docs/ADDENDUM-context-and-memory.md](docs/ADDENDUM-context-and-memory.md).
 See [docs/DESIGN.md](docs/DESIGN.md) for the design and [AGENTS.md](AGENTS.md) for the
 build contract.
 

@@ -6,6 +6,7 @@ Commands:
   weft claim '<json>'|@file|-  [--run]            verify structured claims (claim mode)
   weft audit [paths...]                           sweep the repo for latent broken edges
   weft index [--rebuild] [--status] [--show X]    build/refresh the index, show it, or dump it
+  weft memory anchor|check|changes [json]         grounding for verified memory (mnemo)
   weft doctor                                     explain the setup and what to fix
   weft ledger [--clear]                           blocked changes caught before they shipped
   weft suggest KIND SUBJECT                       did-you-mean for one reference
@@ -152,6 +153,15 @@ def build_parser() -> argparse.ArgumentParser:
         "or provided packages",
     )
 
+    mem = sub.add_parser("memory", help="anchors and self-invalidation for verified memory")
+    msub = mem.add_subparsers(dest="memory_command")
+    ma = msub.add_parser("anchor", help="anchors for a memory: {text, claims}")
+    ma.add_argument("payload", nargs="?", default="-", help="JSON, @file, or '-' for stdin")
+    mc = msub.add_parser("check", help="re-derive anchor states: {anchors: [...]}")
+    mc.add_argument("payload", nargs="?", default="-", help="JSON, @file, or '-' for stdin")
+    mg = msub.add_parser("changes", help="changed graph nodes since a sequence number")
+    mg.add_argument("--since", type=int, default=0)
+
     sub.add_parser("doctor", help="explain the setup and what to fix")
     lg = sub.add_parser("ledger", help="blocked changes caught before they shipped")
     lg.add_argument("--clear", action="store_true", help="delete the ledger")
@@ -182,7 +192,9 @@ def build_parser() -> argparse.ArgumentParser:
     h.add_argument("agent", choices=["claude"])
 
     sub.add_parser("mcp", help="start the stdio MCP server")
-    for parser in list(sub.choices.values()) + list(esub.choices.values()):
+    for parser in (
+        list(sub.choices.values()) + list(esub.choices.values()) + list(msub.choices.values())
+    ):
         _global_options(parser, top=False)
     return p
 
@@ -355,6 +367,33 @@ def _render_dump(what: str, dump: Any) -> str:
     return "\n".join(lines) or "(no lockfiles or manifests)"
 
 
+def cmd_memory(args: argparse.Namespace) -> int:
+    from . import memory
+
+    if args.memory_command not in ("anchor", "check", "changes"):
+        raise SystemExit("usage: weft memory anchor|check|changes")
+    with gate.Session(_repo(args), store_path=args.store) as session:
+        if args.memory_command == "changes":
+            out = memory.changes(session, since=args.since)
+        else:
+            raw = args.payload
+            text = (
+                sys.stdin.read() if raw == "-" else (_read(raw[1:]) if raw.startswith("@") else raw)
+            )
+            try:
+                data = json.loads(text) if text.strip() else {}
+            except ValueError as exc:
+                raise SystemExit(f"invalid JSON: {exc}") from exc
+            if not isinstance(data, dict):
+                raise SystemExit("payload must be a JSON object")
+            if args.memory_command == "anchor":
+                out = memory.anchor(session, str(data.get("text", "")), data.get("claims"))
+            else:
+                out = memory.check(session, list(data.get("anchors") or []))
+    print(json.dumps(out, indent=2, sort_keys=True))
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     from . import doctor
 
@@ -440,6 +479,7 @@ _COMMANDS = {
     "mcp": cmd_mcp,
     "doctor": cmd_doctor,
     "ledger": cmd_ledger,
+    "memory": cmd_memory,
 }
 
 

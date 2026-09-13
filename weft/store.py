@@ -101,6 +101,16 @@ class Store:
                 "CREATE TABLE IF NOT EXISTS files "
                 "(path TEXT PRIMARY KEY, size INTEGER, mtime INTEGER)"
             )
+            # The changed-node ledger: what the graph learned changed at each sync.
+            # Consumers (verified memory) ask "what changed since seq N" to
+            # self-invalidate anything grounded on those nodes: O(changes), not
+            # O(memories).
+            self.db.execute(
+                "CREATE TABLE IF NOT EXISTS changes "
+                "(seq INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, "
+                "commit_hash TEXT, node TEXT NOT NULL, op TEXT NOT NULL)"
+            )
+            self.db.execute("CREATE INDEX IF NOT EXISTS changes__node ON changes (node)")
             self.set_meta("schema_version", str(SCHEMA_VERSION))
             self.set_meta("repo_root", self.repo_root)
 
@@ -385,9 +395,44 @@ class Store:
         self._sync_cache.clear()
         self._pending_files = None
 
+    # --- changed-node ledger ----------------------------------------------------------
+
+    def record_changes(self, commit: str | None, changed: Iterable[tuple[str, str]]) -> int:
+        """Append ``(node, op)`` pairs for one sync. Returns the head seq afterwards."""
+        rows = sorted(set(changed))
+        if rows:
+            import time
+
+            now = int(time.time())
+            with self.transaction():
+                self.db.executemany(
+                    "INSERT INTO changes (ts, commit_hash, node, op) VALUES (?, ?, ?, ?)",
+                    [(now, commit or "", node, op) for node, op in rows],
+                )
+        return self.head_seq()
+
+    def head_seq(self) -> int:
+        row = self.db.execute("SELECT COALESCE(MAX(seq), 0) FROM changes").fetchone()
+        return int(row[0]) if row else 0
+
+    def changes_since(self, seq: int, limit: int = 50_000) -> list[tuple[int, str, str, str]]:
+        """``(seq, node, op, commit)`` rows with seq greater than ``seq``, oldest first."""
+        rows = self.db.execute(
+            "SELECT seq, node, op, commit_hash FROM changes WHERE seq > ? ORDER BY seq LIMIT ?",
+            (int(seq), int(limit)),
+        ).fetchall()
+        return [(int(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in rows]
+
+    def prune_changes(self, keep: int = 200_000) -> None:
+        head = self.head_seq()
+        if head > keep:
+            with self.transaction():
+                self.db.execute("DELETE FROM changes WHERE seq <= ?", (head - keep,))
+
     def status(self) -> dict[str, Any]:
         return {
             "path": self.path,
+            "changes_seq": self.head_seq(),
             "repo_root": self.repo_root,
             "schema_version": self.get_meta("schema_version"),
             "build_commit": self.get_meta("build_commit") or None,

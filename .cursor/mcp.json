@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "weftgate": {
+      "command": "weftgate",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

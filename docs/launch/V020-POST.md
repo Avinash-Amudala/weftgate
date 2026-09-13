@@ -1,5 +1,7 @@
 # A local second brain for coding agents: context, memory and gates in Weftgate 0.2
 
+Preparation draft. [Published version, edited for length](https://dev.to/avinash_amudala_8712ab560/a-local-second-brain-for-coding-agents-context-memory-and-gates-in-weftgate-02-20ik).
+
 Coding agents need more than another large context dump. They need a small set of
 relevant source locations, decisions that are still current, and evidence that their
 changes connect to the project correctly.

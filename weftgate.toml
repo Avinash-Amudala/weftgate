@@ -4,5 +4,5 @@ oracles = ["env_vars", "imports_lockfile", "routes_fastapi"]
 block_on = "reject"                 # reject | review | never
 env_declared_in = [".env.example"]  # extra files/schemas that declare env vars
 
-[weftgate.routes_fastapi]
-app = "app.main:app"
+[weftgate.workflow]
+commands = ["python -m pytest -q"]

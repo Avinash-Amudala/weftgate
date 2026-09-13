@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "stop": [
+      {
+        "command": "weftgate hook cursor --event stop",
+        "loop_limit": 2
+      }
+    ]
+  },
+  "version": 1
+}

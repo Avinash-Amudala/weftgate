@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "weftgate hook codex --event stop",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

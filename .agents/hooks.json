@@ -1,0 +1,11 @@
+{
+  "weftgate": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "weftgate hook antigravity --event stop",
+        "timeout": 60
+      }
+    ]
+  }
+}

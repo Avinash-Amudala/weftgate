@@ -23,9 +23,18 @@ Local validation before the release:
 - The private mnemo companion self-test passes with stale sources hidden on recall
   and original grounding hashes preserved.
 
-The release workflow reruns Linux Python 3.10–3.13, macOS, Windows, core-only and
-package checks before trusted publishing. Record the final run and published-wheel
-smoke test below after publication.
+[Release validation and trusted publishing](https://github.com/Avinash-Amudala/weftgate/actions/runs/34743831555)
+passed for tag `v0.2.0` at `d97754d51ae2f5dea94fd5db6eecd9ee3ac81de3`, including Linux
+Python 3.10–3.13, macOS, Windows, core-only and package checks. A fresh installation
+of `weftgate==0.2.0` from PyPI passed `pip check` and the complete offline self-test
+outside the source checkout. The Windows scan target passes after removing repeated
+path filtering and redundant stat calls; its one-second bound was retained.
+
+The maintainer's Weftgate and mnemo checkouts now have project MCP configuration,
+completion hooks and workflow guidance for all four editors. Client trust remains a
+separate activation step. Weftgate's configured test checkpoint observed passing
+tests with an unchanged tree fingerprint. GitHub branch protection remains a
+maintainer activation step.
 
 ## Verification gate, v0.1.0
 

@@ -159,10 +159,17 @@ Relevant platform references:
 ## v0.2 launch status
 
 - Source, brain hero, captioned film, integration guide and technical article: prepared.
-- Publication and fresh PyPI install: verify before posting the update.
-- [v0.2 article source](launch/V020-POST.md): draft until an actual URL is recorded.
+- [v0.2.0 release](https://github.com/Avinash-Amudala/weftgate/releases/tag/v0.2.0): published; fresh PyPI install verified.
+- [DEV technical article](https://dev.to/avinash_amudala_8712ab560/a-local-second-brain-for-coding-agents-context-memory-and-gates-in-weftgate-02-20ik): published with AI disclosure and inline brain artwork. [Preparation draft](launch/V020-POST.md).
+- [X native-video announcement](https://x.com/AvinashAmudala/status/2099029765500092858): published; 78-second playback verified. Separate SRT upload caused a publishing error and was removed; the film retains its on-screen explanations.
+- [LinkedIn update](https://www.linkedin.com/feed/update/urn:li:share:7504795321307136000/): published with repository and demo links. Native attachment could not be completed through this picker.
+- [GitHub announcement](https://github.com/Avinash-Amudala/weftgate/discussions/13): published.
+- [Marketplace](https://github.com/marketplace/actions/weftgate): v0.2.0 shown as latest.
 - Existing Show HN submission: preserve it; do not submit a duplicate for this update.
-- X native-video upload: previously blocked by browser permissions; retry after release.
+- Browser reconnection resolved the initial X file-access error. The native video is now live.
 - Paid placements and direct outreach: none purchased or sent.
 
-Record actual publication URLs and measured results here. Do not mark drafts as posts.
+At launch, the repository still has 1 star and 0 forks. No 1,000-star outcome is
+claimed. Aggregate traffic snapshots stay local in `.launch-metrics/`; no paid spend
+or automated ongoing campaign has been started. Continue the six-week trial-feedback
+plan above, with one substantive follow-up at a time.

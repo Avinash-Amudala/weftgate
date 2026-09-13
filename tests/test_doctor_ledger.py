@@ -58,11 +58,12 @@ def test_ledger_records_only_blocking_verdicts(tmp_path, capsys, monkeypatch):
     assert info["blocks"] == 2 and info["broken_wires"] == 6
     assert info["by_surface"] == {"cli": 1, "mcp": 1}
     assert set(info["by_oracle"]) == {"env_vars", "imports_lockfile", "routes_fastapi"}
-    assert info["estimated_tokens_saved"] == 2 * ledger.ROUND_TRIP_TOKENS
+    assert "estimated_tokens_saved" not in info
+    assert info["context_requests"] == 0
     capsys.readouterr()
     assert cli_main(["ledger"]) == 0
     out = capsys.readouterr().out
-    assert "2 blocked change(s)" in out and "estimate" in out
+    assert "2 blocked change(s)" in out and "not measured" in out
     monkeypatch.setenv("WEFTGATE_LEDGER", "0")
     assert cli_main(["--repo", root, "--store", store, "check", "app/broken.py"]) == 1
     assert ledger.summary()["blocks"] == 2  # disabled: not recorded

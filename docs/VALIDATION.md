@@ -1,5 +1,32 @@
 # Release validation
 
+## Grounded context and recall, v0.2.0
+
+Local validation before the release:
+
+- **199 tests passed, 90.88% line coverage** on macOS / Python 3.13.
+- Ruff lint and formatting, strict mypy, offline self-test and the seeded fixture
+  mutation evaluation. The 13 injected mutations were detected, blocked and given
+  usable suggestions. This does not estimate field accuracy.
+- Fresh wheel installed without dependencies in an isolated environment; the
+  complete offline self-test ran outside the source checkout.
+- Regression coverage for dirty/deleted sources, ambiguous symbols, stale note
+  suppression, explicit reanchoring, repository isolation, Unicode byte budgets,
+  CLI/MCP output parity, staged/untracked changes, observed passing/failing commands,
+  native completion protocols and preserving shared Git worktree hooks.
+- Native hook protocol fixtures cover Codex, Claude Code, Cursor and Antigravity.
+  Interactive certification against every editor version is not claimed. Review
+  project trust and follow [the activation checks](AGENTS-INTEGRATION.md).
+- Captioned 78-second film: 1920×1080, 30 fps, H.264/AAC, fast-start MP4. Complete
+  audio/video decoding passed; encoded scenes were visually reviewed. Source,
+  actual CLI evidence, a 598 KB GIF and the brain artwork are included.
+- The private mnemo companion self-test passes with stale sources hidden on recall
+  and original grounding hashes preserved.
+
+The release workflow reruns Linux Python 3.10–3.13, macOS, Windows, core-only and
+package checks before trusted publishing. Record the final run and published-wheel
+smoke test below after publication.
+
 ## Verification gate, v0.1.0
 
 The release tag points to `9021b73b95fa5e4d0c7db967623acf5114cb809b`.

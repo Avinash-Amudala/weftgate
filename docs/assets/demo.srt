@@ -1,34 +1,43 @@
-WEBVTT
-
-00:00:00.000 --> 00:00:05.000
+1
+00:00:00,000 --> 00:00:05,000
 The code looks right. But does it connect?
 
-00:00:05.000 --> 00:00:11.000
+2
+00:00:05,000 --> 00:00:11,000
 A local second brain grounded in code. Understand, remember, verify.
 
-00:00:11.000 --> 00:00:16.000
+3
+00:00:11,000 --> 00:00:16,000
 Run weftgate check app/broken.py. Trace each reference to repository evidence.
 
-00:00:16.000 --> 00:00:24.000
+4
+00:00:16,000 --> 00:00:24,000
 Three broken references. Suggestions: requests, DATABASE_URL, and health.
 
-00:00:24.000 --> 00:00:30.000
+5
+00:00:24,000 --> 00:00:30,000
 Apply the suggested names and run the same check.
 
-00:00:30.000 --> 00:00:33.000
+6
+00:00:30,000 --> 00:00:33,000
 The corrected fixture returns ACCEPT, with exit code zero.
 
-00:00:33.000 --> 00:00:41.000
+7
+00:00:33,000 --> 00:00:41,000
 A dynamic environment key returns REVIEW. Uncertainty does not block.
 
-00:00:41.000 --> 00:00:48.000
+8
+00:00:41,000 --> 00:00:48,000
 Native completion checks for Codex, Claude Code, Cursor and Antigravity. Activate hooks in your client.
 
-00:00:48.000 --> 00:00:58.000
+9
+00:00:48,000 --> 00:00:58,000
 Request compact source-backed contract cards. Token counts vary by model.
 
-00:00:58.000 --> 00:01:08.000
+10
+00:00:58,000 --> 00:01:08,000
 Save decisions with file anchors. Changed sources are hidden on recall. Fresh sources do not prove prose.
 
-00:01:08.000 --> 00:01:18.000
+11
+00:01:08,000 --> 00:01:18,000
 pip install weftgate. Review and activate your editor hooks. Keep CI checks required.

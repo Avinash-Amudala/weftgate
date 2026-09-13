@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "weftgate"
 dynamic = ["version"]
-description = "A verification gate for coding agents that checks the wiring, not the spelling."
+description = "A local second brain for coding agents: grounded context, source-aware memory and verification gates."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -22,10 +22,9 @@ dependencies = []
 
 [project.optional-dependencies]
 demo = ["Pillow>=10.0", "imageio-ffmpeg>=0.5"]
-# Optional accelerators. Each must degrade to UNVERIFIABLE when absent. In v0.1 the core
-# uses none of them: treesitter, lsp, and yaml are reserved for the Tier 1 oracles of
-# v0.2, and mcp is used only by the test-suite to drive the stdlib stdio server with the
-# official client.
+# Optional accelerators reserved for future oracles. The v0.2 core does not use
+# treesitter, lsp or yaml. mcp is used by tests to drive the stdlib server through
+# the official client. No extra is needed for context, memory, hooks or serving MCP.
 treesitter = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.7"]
 lsp = ["python-lsp-server>=1.10"]
 yaml = ["PyYAML>=6.0"]

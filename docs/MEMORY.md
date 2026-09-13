@@ -1,10 +1,46 @@
-# Verified memory: the recall consumer
+# Source-aware memory
 
-This is the third consumer of the graph from `docs/ADDENDUM-context-and-memory.md`
-section A5, built as an integration with [mnemo](https://github.com/Avinash-Amudala/mnemo)
-rather than a memory engine of its own. weftgate owns the graph and the truth about it;
-mnemo owns the memories and their ranking. The seam between them is three small,
-stable calls plus a plugin entry point.
+Weftgate includes a compact public adaptation of mnemo's lexical memory design.
+Install `weftgate` once; no companion repository is required for these commands:
+
+```bash
+weftgate remember "Order idempotency" "Keep duplicate requests idempotent." --file app/orders.py
+weftgate recall "orders"
+weftgate recall "orders" --include-stale
+weftgate remember "Order idempotency" "Reviewed revised behavior." --file app/orders.py --id NOTE_ID
+weftgate forget NOTE_ID
+```
+
+Notes live in `recall_notes` in the existing per-repository SQLite cache, normally
+under `~/.cache/weftgate`. `WEFTGATE_CACHE` overrides that location. They are local,
+not committed or sent to a service by Weftgate. Your MCP client receives retrieved
+notes and may transmit them according to its own policy. `weftgate index --status`
+shows the exact store path. No transcript capture, model download or federation
+is enabled by these commands.
+
+Titles/body are bounded to 120/4,000 characters with up to 20 explicit file citations.
+Paths must stay inside the repo and cannot traverse symlinks. Recall uses deterministic
+camel-aware lexical matching and rechecks candidate file hashes before returning them.
+
+| State | Meaning | Returned by default |
+| --- | --- | --- |
+| anchored | All cited files match their original hashes. Prose remains unverified. | Yes |
+| unverified | No files were cited. Useful for preferences, not proof. | Yes |
+| stale | A source changed or cannot be verified. | No |
+| invalid | A cited source disappeared. | No |
+
+Re-reading stale notes never updates their original evidence. Only explicitly
+replacing a note by ID re-anchors reviewed text. `forget` logically deletes one note;
+it is not a forensic erasure guarantee for backups or SQLite storage. Avoid saving
+credentials. Notes are untrusted data and must not override user or system instructions.
+Token accounting follows [CONTEXT.md](CONTEXT.md).
+
+## Legacy mnemo plugin seam
+
+Existing mnemo users can keep `"oracles": ["weftgate.memory"]` in `.mnemo.json`.
+The original lower-level anchors API remains supported. The public notebook does
+not automatically ingest or expose an existing private mnemo database. The rest
+of this page documents that lower-level integration.
 
 ## The mechanism
 

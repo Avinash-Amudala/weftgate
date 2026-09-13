@@ -5,6 +5,23 @@ All notable changes to weftgate are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-13
+
+### Added
+- Bounded source context: `resolve`, `neighbors` and `card`, shared by CLI and MCP.
+- Local `remember`, `recall` and `forget`, integrating mnemo's lexical grounding
+  design without requiring a private companion package. Changed sources are hidden.
+- Current-tree `checkpoint` with explicit test execution and incomplete-evidence states.
+- Project MCP setup for Codex and Antigravity, completion hooks for four editors,
+  and opt-in workflow instructions that preserve existing configuration.
+- Brain visual and evidence-backed context/memory walkthrough.
+
+### Changed
+- The ledger reports observed payload bytes and gate events. Removed speculative
+  token savings based on a fixed cost per rejection.
+- Setup uses atomic file replacement and rejects symlink destinations before writes.
+- Reduce repeated stat calls and path filtering in no-Git index scans.
+
 ## [0.1.1] - 2026-09-13
 
 ### Fixed

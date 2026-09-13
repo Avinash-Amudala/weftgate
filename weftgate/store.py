@@ -18,6 +18,7 @@ import json
 import os
 import re
 import sqlite3
+import stat
 import subprocess
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
@@ -312,7 +313,7 @@ class Store:
                     st = os.stat(full)
                 except OSError:
                     continue
-                if not os.path.isfile(full):
+                if not stat.S_ISREG(st.st_mode):
                     continue
                 rel = _posix(os.path.relpath(full, self.repo_root))
                 found[rel] = (st.st_size, st.st_mtime_ns)
@@ -360,7 +361,8 @@ class Store:
     def _fingerprints(self) -> dict[str, tuple[int, int]]:
         """(size, mtime_ns) per indexable file; the git listing when available."""
         if not self.is_git_repo():
-            return {p: fp for p, fp in self._walk().items() if p in set(self._filter([p]))}
+            scanned = self._walk()
+            return {p: scanned[p] for p in self._filter(scanned)}
         out: dict[str, tuple[int, int]] = {}
         for rel in self.all_files():
             try:

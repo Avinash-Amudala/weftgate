@@ -3,7 +3,9 @@
 import json
 import os
 
-from tests.conftest import git_init, have_git, write
+import pytest
+
+from tests.conftest import git, git_commit_all, git_init, have_git, write
 from weftgate import setup
 from weftgate.cli import main as cli_main
 from weftgate.eval.fixture import write_fixture
@@ -70,6 +72,25 @@ def test_setup_hooks_merge_without_clobbering(tmp_path, capsys):
     assert setup.run(root, hooks=True) == 0
     assert json.load(open(os.path.join(root, ".claude", "settings.json"))) == settings
     capsys.readouterr()
+
+
+@pytest.mark.skipif(not have_git(), reason="git required")
+def test_worktree_setup_preserves_shared_hook_and_doctor_detects_git(tmp_path, capsys):
+    from weftgate import doctor
+
+    root = _repo(tmp_path)
+    git_init(root)
+    git_commit_all(root)
+    shared_hook = write(root, ".git/hooks/pre-commit", "#!/bin/sh\nweftgate check --staged\n")
+    worktree = str(tmp_path / "linked")
+    git(root, "worktree", "add", "-b", "linked", worktree)
+    assert setup.run(worktree, hooks=True, agents=["codex"]) == 0
+    assert "shared/external Git hook preserved" in capsys.readouterr().out
+    assert open(shared_hook).read() == "#!/bin/sh\nweftgate check --staged\n"
+    assert os.path.isfile(os.path.join(worktree, ".codex", "hooks.json"))
+    checks = {c["name"]: c for c in doctor.run(worktree)["checks"]}
+    assert checks["git"]["ok"] is True
+    assert "git pre-commit" in checks["hooks"]["detail"]
 
 
 def test_claude_hook_blocks_only_on_reject(tmp_path, capsys):
@@ -157,7 +178,7 @@ def test_setup_agents_write_project_configs_and_print_snippets(tmp_path, capsys)
     write(root, ".vscode/mcp.json", json.dumps({"servers": {"other": {"command": "x"}}}))
     assert cli_main(["--repo", root, "--format", "json", "setup", "--agents", "all"]) == 0
     summary = json.loads(capsys.readouterr().out)
-    assert set(summary["snippets"]) == {"codex", "windsurf", "claude-desktop"}
+    assert set(summary["snippets"]) == {"windsurf", "claude-desktop"}
     assert json.load(open(os.path.join(root, ".mcp.json")))["mcpServers"]["weftgate"]["args"] == [
         "mcp"
     ]
@@ -168,7 +189,8 @@ def test_setup_agents_write_project_configs_and_print_snippets(tmp_path, capsys)
     assert not os.path.exists(os.path.join(root, ".claude", "settings.json"))
     assert setup.run(root, agents=["codex"]) == 0
     out = capsys.readouterr().out
-    assert "[mcp_servers.weftgate]" in out
+    assert ".codex/config.toml" in out
+    assert "[mcp_servers.weftgate]" in open(os.path.join(root, ".codex", "config.toml")).read()
     try:
         setup.run(root, agents=["nope"])
     except ValueError as exc:

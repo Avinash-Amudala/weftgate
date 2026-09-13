@@ -1,8 +1,8 @@
 # AGENTS.md: how to build weftgate
 
-This file is the contract for any coding agent (Claude Code, Codex, Cursor, Antigravity) implementing this repo. Read it fully before writing code. The complete design is in `docs/DESIGN.md`; this file is the how, that file is the what and why. `docs/ADDENDUM-context-and-memory.md` defines the later phases (the grounded-context surface and verified memory); read it too, but do not build those yet.
+This file is the contract for any coding agent implementing this repo. Read it fully before writing code. The original gate design is in `docs/DESIGN.md`; the current context, memory and workflow contract is in `docs/ADDENDUM-context-and-memory.md`. Read both.
 
-Scope for now is v0.1: the verification gate only. The context and recall consumers in the addendum are v0.2 and v0.3 and must not be started until v0.1 is complete and green.
+The v0.1 gate is released and green. The maintainer authorized v0.2: bounded grounded context, a public mnemo-derived recall surface, native completion adapters and handoff evidence. Preserve the gate invariants below. Do not claim universal correctness, exact model-token savings or activation in untested editor builds.
 
 ## 0. First action: set up the environment
 

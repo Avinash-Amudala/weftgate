@@ -3,6 +3,7 @@ deterministic, detects and blocks every injected edge with a usable suggestion."
 
 import json
 import os
+from pathlib import Path
 
 from tests.conftest import write
 from weftgate.cli import main as cli_main
@@ -75,10 +76,13 @@ def test_mutate_on_a_copied_repo_never_touches_it(tmp_path, capsys):
     os.makedirs(root)
     write_fixture(root)
     write(root, ".venv/lib/junk.py", "import nothing_here\n")
-    before = {p: open(os.path.join(root, p)).read() for p in ("app/main.py", "app/config.py")}
+    before = {
+        p: Path(os.path.join(root, p)).read_text(encoding="utf-8")
+        for p in ("app/main.py", "app/config.py")
+    }
     report = mutate.run(root, seed=3, count=2)
     assert report.label == "field" and report.total == 6 and report.misses == 0
-    assert {p: open(os.path.join(root, p)).read() for p in before} == before
+    assert {p: Path(os.path.join(root, p)).read_text(encoding="utf-8") for p in before} == before
     code = cli_main(
         ["--repo", root, "--format", "json", "eval", "mutate", "--seed", "3", "--count", "2"]
     )

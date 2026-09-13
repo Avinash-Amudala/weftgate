@@ -5,6 +5,33 @@ All notable changes to weftgate are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-13
+
+### Added
+- One local memory workflow in Weftgate: `brief` combines relevant notes and source
+  context; `handoff` saves a session summary with historical checkpoint evidence.
+- Explicit file, env, route, import and symbol claims on remembered notes, with
+  proven false claims refused and uncertain evidence retained for review.
+- Read-only Mnemo migration with preview/apply, original source hashes, stable IDs,
+  transaction rollback and exclusion of raw transcript episodes.
+- Portable paginated memory export/import and aggregate `memory stats`.
+- Mnemo note kinds, including preferences and todos, and best-effort secret scrubbing
+  before note writes and legacy-text output. No second package is required.
+
+### Changed
+- Import anchors track dependency contract changes. Old evidence is never silently
+  refreshed into a current claim, including during migration.
+- Handoff summaries are not saved when source changes during checking or saving.
+  Recalled checkpoint snapshots are labeled historical and compared with the current tree.
+- Unified CLI/MCP surfaces and setup guidance for one public package. Existing note
+  storage and the legacy Mnemo plugin API remain compatible.
+- Rewrite product architecture and migration docs around the implemented workflow.
+
+### Scope
+- Transcript capture, distillation, embeddings and team hubs remain legacy opt-in
+  features. The notebook does not enable them. The attached motion film demonstrates
+  the v0.2 foundation; the new commands are documented in the migration/workflow guides.
+
 ## [0.2.0] - 2026-09-13
 
 ### Added

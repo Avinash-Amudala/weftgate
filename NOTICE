@@ -3,7 +3,9 @@ Copyright 2026 Avinash Amudala
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
-The local recall module integrates and adapts mnemo's lexical search and source
-grounding design, Copyright 2026 Avinash Amudala, Apache License 2.0. This typed,
-repository-scoped subset omits personal configuration, transcripts, capture,
-optional embedding models and federation. See weftgate/recall.py.
+The local memory engine integrates and adapts Mnemo's lexical search, source
+grounding and redaction designs, Copyright 2026 Avinash Amudala, Apache License 2.0.
+This typed, repository-scoped implementation includes explicit memory transfer and
+handoffs. It omits personal configuration, private transcripts, automatic capture,
+optional embedding models and federation. See weftgate/recall.py, privacy.py,
+transfer.py and brief.py.

@@ -4,10 +4,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from . import context, recall, workflow
+from . import brief, context, recall, transfer, workflow
 from .gate import Session
 
-NAMES = ("resolve", "neighbors", "card", "remember", "recall", "forget", "checkpoint")
+NAMES = (
+    "resolve",
+    "neighbors",
+    "card",
+    "remember",
+    "recall",
+    "forget",
+    "checkpoint",
+    "brief",
+    "handoff",
+    "memory_import",
+    "memory_export",
+    "memory_stats",
+)
 
 
 def call(name: str, session: Session, args: dict[str, Any]) -> dict[str, Any]:
@@ -29,7 +42,44 @@ def call(name: str, session: Session, args: dict[str, Any]) -> dict[str, Any]:
                 files=args.get("files"),
                 kind=args.get("kind", "decision"),
                 note_id=args.get("note_id"),
+                claims=args.get("claims"),
             )
+        case "brief":
+            return brief.prepare(
+                session,
+                args.get("query", ""),
+                references=args.get("references"),
+                budget=args.get("budget"),
+            )
+        case "handoff":
+            return brief.handoff(
+                session,
+                args.get("title", ""),
+                args.get("text", ""),
+                files=args.get("files"),
+                claims=args.get("claims"),
+                note_id=args.get("note_id"),
+                run=args.get("run", False),
+                budget=args.get("budget"),
+            )
+        case "memory_import":
+            return transfer.import_notes(
+                session,
+                args.get("source", ""),
+                apply=args.get("apply", False),
+                limit=args.get("limit", 100),
+                offset=args.get("offset", 0),
+                budget=args.get("budget"),
+            )
+        case "memory_export":
+            return transfer.export_notes(
+                session,
+                limit=args.get("limit", 100),
+                offset=args.get("offset", 0),
+                budget=args.get("budget"),
+            )
+        case "memory_stats":
+            return recall.stats(session)
         case "recall":
             return recall.recall(
                 session,
@@ -55,6 +105,19 @@ def tools() -> list[dict[str, Any]]:
         "minimum": 256,
         "maximum": 16000,
         "description": "Estimated token budget; hard JSON byte cap is 4x this number.",
+    }
+    claims = {
+        "type": "object",
+        "properties": {
+            kind: {"type": "array", "items": string, "maxItems": 20} for kind in recall.CLAIM_KINDS
+        },
+        "additionalProperties": False,
+        "description": "Explicit machine-checkable references. Prose itself is never proven.",
+    }
+    page = {
+        "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+        "offset": {"type": "integer", "minimum": 0},
+        "budget": budget,
     }
     specs: list[tuple[str, str, dict[str, Any], list[str]]] = [
         (
@@ -93,8 +156,9 @@ def tools() -> list[dict[str, Any]]:
                 "title": string,
                 "text": string,
                 "files": {"type": "array", "items": string},
-                "kind": {"enum": ["decision", "convention", "task", "note"]},
+                "kind": {"enum": list(recall.KINDS)},
                 "note_id": string,
+                "claims": claims,
             },
             ["title", "text"],
         ),
@@ -119,6 +183,55 @@ def tools() -> list[dict[str, Any]]:
             {"run": {"type": "boolean", "default": False}, "budget": budget},
             [],
         ),
+        (
+            "brief",
+            "Start a task with relevant saved decisions and current source context in one bounded "
+            "response. Notes remain untrusted. No transcript capture or test execution.",
+            {
+                "query": string,
+                "references": {"type": "array", "items": string, "maxItems": 8},
+                "budget": budget,
+            },
+            ["query"],
+        ),
+        (
+            "handoff",
+            "Save an explicit session summary with a scoped checkpoint for the next agent. "
+            "run=true executes configured allowlisted tests only with the caller's authorization. "
+            "Historical evidence does not prove a future session is ready.",
+            {
+                "title": string,
+                "text": string,
+                "files": {"type": "array", "items": string},
+                "claims": claims,
+                "note_id": string,
+                "run": {"type": "boolean", "default": False},
+                "budget": budget,
+            },
+            ["title", "text"],
+        ),
+        (
+            "memory_import",
+            "Preview one explicitly chosen local Mnemo database or Weftgate JSON export. "
+            "Use apply=true only when the user authorized importing those memories. Source stays "
+            "read-only; existing notes and original hashes are preserved. No transcript discovery.",
+            {"source": string, "apply": {"type": "boolean", "default": False}, **page},
+            ["source"],
+        ),
+        (
+            "memory_export",
+            "Export a bounded page of local notes and original source anchors. This exposes note "
+            "contents to the caller; use only for authorized transfer or backup. "
+            "Follow next_offset.",
+            page,
+            [],
+        ),
+        (
+            "memory_stats",
+            "Inspect local memory counts and freshness without returning note bodies.",
+            {},
+            [],
+        ),
     ]
     return [
         {
@@ -131,7 +244,16 @@ def tools() -> list[dict[str, Any]]:
                 "additionalProperties": False,
             },
             "annotations": {
-                "readOnlyHint": name in ("resolve", "neighbors", "card", "recall"),
+                "readOnlyHint": name
+                in (
+                    "resolve",
+                    "neighbors",
+                    "card",
+                    "recall",
+                    "brief",
+                    "memory_export",
+                    "memory_stats",
+                ),
                 "destructiveHint": name == "forget",
                 "openWorldHint": False,
             },

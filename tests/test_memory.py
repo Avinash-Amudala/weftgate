@@ -3,6 +3,7 @@ and weftgate's oracles offered through mnemo's plugin protocol."""
 
 import json
 import os
+from pathlib import Path
 
 from tests.conftest import write
 from weftgate import cli, mcp_server, memory
@@ -28,8 +29,8 @@ def test_sync_records_changed_nodes(tmp_path):
         write(
             root,
             "app/orders.py",
-            open(os.path.join(root, "app/orders.py"))
-            .read()
+            Path(os.path.join(root, "app/orders.py"))
+            .read_text(encoding="utf-8")
             .replace(
                 "@router.get('/orders/{order_id}')\nasync def get_order",
                 "@router.get('/order/{id}')\nasync def fetch_order",
@@ -90,8 +91,8 @@ def test_anchor_and_check_lifecycle(tmp_path):
         write(
             root,
             "app/handlers.py",
-            open(os.path.join(root, "app/handlers.py"))
-            .read()
+            Path(os.path.join(root, "app/handlers.py"))
+            .read_text(encoding="utf-8")
             .replace("return {'ok': True}", "return {'ok': True, 'v': 2}"),
         )
         chk = memory.check(s, a["anchors"])

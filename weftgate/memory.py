@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import sys
 from collections.abc import Callable, Iterable
 from typing import Any
 
@@ -216,6 +217,11 @@ def _make_anchor(
                 "node": f"dist:{_lang_of(value)}:{top}",
                 "oracle": "weftgate.imports_lockfile",
                 **_state_of(f, "provided"),
+                **(
+                    {"content_hash": _import_contract_hash(session)}
+                    if f.level is Level.ACCEPT
+                    else {}
+                ),
             }
         case _:  # symbol: "path/to/file.py:name"
             file, _, name = value.rpartition(":")
@@ -310,6 +316,24 @@ def _env_declaration_hash(session: Session, name: str) -> str:
         return ""
     rows = ns.query("SELECT file, source FROM {t:decl} WHERE name=? ORDER BY file", (name,))
     return _sha("|".join(f"{r[0]}:{r[1]}" for r in rows)) if rows else ""
+
+
+def _import_contract_hash(session: Session) -> str:
+    """Track dependency declarations and local import names, not installed code."""
+    ns = session.store.namespace("imports_lockfile")
+    if not ns.exists("sources") or not ns.exists("local"):
+        return ""
+    pieces = [sys.version]
+    for (source,) in ns.query("SELECT DISTINCT source FROM {t:sources} ORDER BY source"):
+        text = session.ctx.read_text(str(source))
+        if text is None:
+            return ""
+        pieces.extend((str(source), text))
+    pieces.extend(
+        repr(tuple(row))
+        for row in ns.query("SELECT lang, name, kind, source FROM {t:local} ORDER BY 1,2,3,4")
+    )
+    return _sha("\0".join(pieces))
 
 
 def _symbol_hash(session: Session, file: str, name: str) -> str:

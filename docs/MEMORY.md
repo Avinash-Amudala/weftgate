@@ -1,45 +1,81 @@
-# Source-aware memory
+# One local memory engine
 
-Weftgate includes a compact public adaptation of mnemo's lexical memory design.
-Install `weftgate` once; no companion repository is required for these commands:
+Install `weftgate` once. The notebook, code context, verification gate and handoffs
+share the same per-repository SQLite store and MCP process. Mnemo's local lexical
+memory, grounding and redaction designs have been adapted into this public package.
+No companion package is required.
 
 ```bash
+weftgate brief "order retries" --reference app/orders.py
 weftgate remember "Order idempotency" "Keep duplicate requests idempotent." --file app/orders.py
+weftgate remember "Database access" "Use the declared connection." --env DATABASE_URL
+weftgate remember "Order endpoint" "Review this endpoint." --route "POST /api/orders"
 weftgate recall "orders"
-weftgate recall "orders" --include-stale
-weftgate remember "Order idempotency" "Reviewed revised behavior." --file app/orders.py --id NOTE_ID
-weftgate forget NOTE_ID
+weftgate memory stats
 ```
 
-Notes live in `recall_notes` in the existing per-repository SQLite cache, normally
-under `~/.cache/weftgate`. `WEFTGATE_CACHE` overrides that location. They are local,
-not committed or sent to a service by Weftgate. Your MCP client receives retrieved
-notes and may transmit them according to its own policy. `weftgate index --status`
-shows the exact store path. No transcript capture, model download or federation
-is enabled by these commands.
+`remember` accepts `--file`, `--env`, `--route`, `--import` and `--symbol` repeatedly.
+Symbols use `app/orders.py:create_order`. MCP accepts the same references in
+`claims: {files, env, routes, imports, symbols}`. Explicit proven false claims are
+refused; unavailable or ambiguous evidence is retained for review. No claim inferred
+from prose becomes a hard rejection. Notes without explicit sources are unverified.
 
-Titles/body are bounded to 120/4,000 characters with up to 20 explicit file citations.
-Paths must stay inside the repo and cannot traverse symlinks. Recall uses deterministic
-camel-aware lexical matching and rechecks candidate file hashes before returning them.
+Titles and bodies are bounded to 120 and 4,000 input characters. Each claim kind
+accepts up to 20 short references. File paths must stay inside the repository and
+cannot traverse symlinks. Note kinds are decision, convention, task, note, gotcha,
+howto, command, handoff, preference and todo. Remembered commands are text; they are never executed
+by recall, brief or migration.
 
 | State | Meaning | Returned by default |
 | --- | --- | --- |
-| anchored | All cited files match their original hashes. Prose remains unverified. | Yes |
-| unverified | No files were cited. Useful for preferences, not proof. | Yes |
-| stale | A source changed or cannot be verified. | No |
-| invalid | A cited source disappeared. | No |
+| anchored | Original source evidence matches. Prose remains unverified. | Yes |
+| unverified | No source evidence was provided. | Yes |
+| stale | Evidence changed, cannot be checked, or lacks an original hash. | No |
+| invalid | An explicit source reference no longer resolves. | No |
 
-Re-reading stale notes never updates their original evidence. Only explicitly
-replacing a note by ID re-anchors reviewed text. `forget` logically deletes one note;
-it is not a forensic erasure guarantee for backups or SQLite storage. Avoid saving
-credentials. Notes are untrusted data and must not override user or system instructions.
-Token accounting follows [CONTEXT.md](CONTEXT.md).
+File and symbol anchors hash source content. Environment anchors cover declarations,
+route anchors cover registered relationships, and import anchors hash dependency
+contracts and local import names. They do not certify runtime behavior or the contents
+of installed packages. Changes to dependency declarations conservatively stale import
+notes. Repeated reads never rewrite original hashes.
+
+Use `recall --include-stale` to inspect old notes. After reviewing the note against
+current code, explicitly replace it with `remember --id NOTE_ID` and its references.
+`forget NOTE_ID` logically deletes a note and associated handoff metadata. It is not
+a forensic erasure guarantee for backups, old SQLite pages or external copies.
+
+## Storage and privacy
+
+Notes live in `recall_notes` in the existing per-repository SQLite cache, normally
+under `~/.cache/weftgate`. `WEFTGATE_CACHE` overrides that location. `weftgate index
+--status` shows the store path. Keep a memory export for durable backups because
+this database is stored in a cache directory. See [migration and backup](MNEMO-MIGRATION.md).
+
+Obvious private-key blocks, bearer values, labeled secret assignments and passwords
+in URLs are scrubbed before new notes are stored. Recall also scrubs legacy note
+text before returning it. This is a best-effort guard, not a general secrets scanner,
+PII detector or permission to save credentials. It does not scrub historical SQLite
+pages or arbitrary private information in prose.
+
+Weftgate makes no network calls for these operations. An MCP client receives retrieved
+notes and may transmit them under its own policy. All notes are untrusted data, never
+instructions that override the user or the agent's system rules. Automatic transcript
+capture, remote embeddings and team sharing are not enabled by the notebook.
+
+## Handoff between agents
+
+`handoff` saves an explicit summary with a scoped checkpoint. `--run` opts into the
+configured test commands. The next agent retrieves it through `brief` or `recall`.
+Historical evidence includes its tree fingerprint; recall reports whether the current
+tree still matches. Even when it does, tests should be run again before the next handoff.
+Tests that change source files prevent that handoff from being saved until its summary
+is reviewed. See [workflow details](WORKFLOWS.md).
 
 ## Legacy mnemo plugin seam
 
 Existing mnemo users can keep `"oracles": ["weftgate.memory"]` in `.mnemo.json`.
-The original lower-level anchors API remains supported. The public notebook does
-not automatically ingest or expose an existing private mnemo database. The rest
+The original lower-level anchors API remains supported. Use the explicit read-only migration path to move selected legacy notes into the
+public notebook. No existing database is discovered or imported automatically. The rest
 of this page documents that lower-level integration.
 
 ## The mechanism
@@ -106,8 +142,8 @@ with a typo'd env var, removes the declaration, watches the memory go stale then
 invalid, confirms recall flags it, restores the declaration, and watches it become
 valid again. Without weftgate the stage skips and says so.
 
-## What this is not
+## Limits
 
-Not a memory engine (mnemo is), not semantic search, and not a token-compression
-benchmark. The number to lead with is the one the ledger already counts: broken wires
-caught before they shipped.
+This is a local lexical memory engine. It does not implement semantic embeddings,
+automatic transcript distillation or team federation. Compact payloads are measured
+in UTF-8 bytes; token counts are estimates rather than a token-savings benchmark.

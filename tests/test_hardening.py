@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 
 from tests.conftest import write
 from weftgate import cli, mcp_server
@@ -318,7 +319,7 @@ def test_nested_project_root_resolves_cross_module_handlers(tmp_path):
         root,
         RoutesFastAPIOracle(),
         "backend/app/api/main.py",
-        open(os.path.join(root, "backend/app/api/main.py")).read(),
+        Path(os.path.join(root, "backend/app/api/main.py")).read_text(encoding="utf-8"),
         ctx=ctx,
     )
     assert res["login.router"].level is Level.ACCEPT, res["login.router"].reason

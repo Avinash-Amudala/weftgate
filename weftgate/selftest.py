@@ -229,7 +229,8 @@ def _checks(root: str, store: str) -> list[Check]:
                     nodes.get(node, {}).get("state") == "valid", f"anchor {node}: {nodes.get(node)}"
                 )
             _expect(memory.check(s, grounded["anchors"])["summary"] == "valid", "fresh anchors")
-            original = open(env_path, encoding="utf-8").read()
+            with open(env_path, encoding="utf-8") as source:
+                original = source.read()
             seq = s.store.head_seq()
         try:
             with open(env_path, "w", encoding="utf-8") as fh:
@@ -269,7 +270,7 @@ def _checks(root: str, store: str) -> list[Check]:
                 memory.close_sessions()  # the plugin caches a Session per repo
 
     def brain_context_and_recall() -> None:
-        from . import context, recall, workflow
+        from . import brief, context, recall, transfer, workflow
         from .payload import encode
 
         with Session(root, store_path=store) as s:
@@ -281,6 +282,17 @@ def _checks(root: str, store: str) -> list[Check]:
             )
             _expect(note["state"] == "anchored", "memory did not anchor")
             _expect(len(recall.recall(s, "orders")["items"]) == 1, "memory was not recalled")
+            rejected = recall.remember(s, "Wrong env", "A claim.", claims={"env": ["DATABSE_URL"]})
+            _expect(not rejected["stored"], "memory accepted an explicitly false claim")
+            task = brief.prepare(s, "orders")
+            _expect(any("memory" in item for item in task["items"]), "brief lost recalled memory")
+            exported = transfer.export_notes(s)
+            with tempfile.TemporaryDirectory(prefix="weftgate-memory-transfer-") as directory:
+                path = os.path.join(directory, "notes.json")
+                with open(path, "w", encoding="utf-8") as output:
+                    output.write(encode(exported))
+                imported = transfer.import_notes(s, path, apply=True)
+                _expect(imported["kept_existing"] == 1, "memory import duplicated a note")
             _expect(workflow.checkpoint(s)["state"] == "blocked", "checkpoint missed broken code")
             _expect(recall.forget(s, note["id"])["deleted"], "forget failed")
 

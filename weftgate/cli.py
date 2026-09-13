@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sqlite3
 import sys
 from typing import Any
 
@@ -167,6 +168,15 @@ def build_parser() -> argparse.ArgumentParser:
     mc.add_argument("payload", nargs="?", default="-", help="JSON, @file, or '-' for stdin")
     mg = msub.add_parser("changes", help="changed graph nodes since a sequence number")
     mg.add_argument("--since", type=int, default=0)
+    for command in ("import", "export"):
+        mt = msub.add_parser(command, help=f"{command} notes through the shared local notebook")
+        if command == "import":
+            mt.add_argument("source", help="explicit Mnemo SQLite file or Weftgate JSON export")
+            mt.add_argument("--apply", action="store_true", help="save the previewed page")
+        mt.add_argument("--limit", type=int, default=100)
+        mt.add_argument("--offset", type=int, default=0)
+        mt.add_argument("--budget", type=int)
+    msub.add_parser("stats", help="counts and freshness without note bodies")
 
     sub.add_parser("doctor", help="explain the setup and what to fix")
     for name in ("resolve", "neighbors", "card"):
@@ -182,10 +192,26 @@ def build_parser() -> argparse.ArgumentParser:
     rem.add_argument("title")
     rem.add_argument("text", help="note text, or '-' to read stdin")
     rem.add_argument("--file", action="append", dest="files")
-    rem.add_argument(
-        "--kind", choices=["decision", "convention", "task", "note"], default="decision"
-    )
+    from .recall import KINDS
+
+    rem.add_argument("--kind", choices=KINDS, default="decision")
     rem.add_argument("--id", dest="note_id", help="explicitly replace/re-anchor this note")
+    for flag in ("env", "route", "import", "symbol"):
+        rem.add_argument(f"--{flag}", action="append", dest=f"claim_{flag}")
+    br = sub.add_parser("brief", help="one task brief with relevant memories and source context")
+    br.add_argument("query")
+    br.add_argument("--reference", action="append", dest="references")
+    br.add_argument("--budget", type=int)
+    ho = sub.add_parser("handoff", help="save a session summary and observed checkpoint")
+    ho.add_argument("title")
+    ho.add_argument("text", help="summary and next steps, or '-' to read stdin")
+    ho.add_argument("--file", action="append", dest="files")
+    ho.add_argument("--id", dest="note_id")
+    ho.add_argument("--run", action="store_true", help="execute configured allowlisted tests")
+    ho.add_argument("--require-ready", action="store_true")
+    ho.add_argument("--budget", type=int)
+    for flag in ("env", "route", "import", "symbol"):
+        ho.add_argument(f"--{flag}", action="append", dest=f"claim_{flag}")
     rec = sub.add_parser("recall", help="retrieve notes, hiding changed sources by default")
     rec.add_argument("query", nargs="?", default="")
     rec.add_argument("--limit", type=int, default=8)
@@ -406,6 +432,14 @@ def _render_dump(what: str, dump: Any) -> str:
 def cmd_memory(args: argparse.Namespace) -> int:
     from . import memory
 
+    if args.memory_command in ("import", "export", "stats"):
+        from . import brain
+        from .payload import encode
+
+        with gate.Session(_repo(args), store_path=args.store) as session:
+            out = brain.call("memory_" + args.memory_command, session, vars(args))
+        print(encode(out))
+        return 0
     if args.memory_command not in ("anchor", "check", "changes"):
         raise SystemExit("usage: weftgate memory anchor|check|changes")
     with gate.Session(_repo(args), store_path=args.store) as session:
@@ -443,8 +477,19 @@ def cmd_brain(args: argparse.Namespace) -> int:
     from .payload import encode
 
     values = vars(args).copy()
-    if args.command == "remember" and values.get("text") == "-":
+    if args.command in ("remember", "handoff") and values.get("text") == "-":
         values["text"] = sys.stdin.read()
+    if args.command in ("remember", "handoff"):
+        values["claims"] = {
+            kind: values[f"claim_{flag}"]
+            for flag, kind in (
+                ("env", "env"),
+                ("route", "routes"),
+                ("import", "imports"),
+                ("symbol", "symbols"),
+            )
+            if values.get(f"claim_{flag}")
+        }
     with gate.Session(_repo(args), store_path=args.store) as session:
         out = brain.call(args.command, session, values)
     from . import ledger
@@ -453,7 +498,7 @@ def cmd_brain(args: argparse.Namespace) -> int:
     print(encode(out))
     if out.get("blocking") or out.get("stored") is False:
         return 1
-    if args.command == "checkpoint" and args.require_ready and out["state"] != "ready":
+    if args.command in ("checkpoint", "handoff") and args.require_ready and out["state"] != "ready":
         return 3
     return 0
 
@@ -532,7 +577,18 @@ def cmd_mcp(args: argparse.Namespace) -> int:
 
 _COMMANDS = {
     **dict.fromkeys(
-        ("resolve", "neighbors", "card", "remember", "recall", "forget", "checkpoint"), cmd_brain
+        (
+            "resolve",
+            "neighbors",
+            "card",
+            "remember",
+            "recall",
+            "forget",
+            "checkpoint",
+            "brief",
+            "handoff",
+        ),
+        cmd_brain,
     ),
     "check": cmd_check,
     "claim": cmd_claim,
@@ -574,7 +630,7 @@ def main(argv: list[str] | None = None) -> int:
     except NotImplementedError as exc:
         print(f"weftgate: not implemented: {exc}", file=sys.stderr)
         return 2
-    except (ValueError, OSError, RuntimeError) as exc:
+    except (ValueError, OSError, RuntimeError, sqlite3.Error) as exc:
         print(f"weftgate: {exc}", file=sys.stderr)
         return 2
 

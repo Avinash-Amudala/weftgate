@@ -1,231 +1,135 @@
-# weftgate: design
+# Weftgate design
 
-*A verification gate for coding agents that checks the wiring, not the spelling.*
+Weftgate is one local context, memory and verification engine for coding agents.
+The public package contains the everyday Mnemo memory workflow alongside the gate:
+start a task with `brief`, save a decision with `remember`, check code connections,
+and leave a scoped `handoff` for the next session. A second package is unnecessary.
 
-Working name: **weftgate** (in weaving, the weftgate is the thread that crosses and binds the warp; here it is the thread that binds the parts of a codebase together). The name is provisional. Check availability on PyPI, npm, and GitHub before committing, and if it is taken, rename with a single find-and-replace since nothing in the design depends on it.
+The name combines the crossing thread in a weave with a verification gate. The
+project is licensed under Apache-2.0. This document describes the implemented
+architecture; [the context and memory contract](ADDENDUM-context-and-memory.md)
+provides the detailed invariants for its newer surfaces.
 
-License: Apache-2.0.
+## What problem it solves
 
----
+Agents can lose project decisions between sessions and produce code whose parts do
+not connect. Weftgate provides small source references and explicit notes, then
+checks supported relationships against the project's own declarations. It makes
+missing evidence visible instead of inventing certainty or a token-savings number.
 
-## 1. The problem
+The coding agent still reasons, reads code, edits and repairs. Weftgate supplies
+context and observations. It does not provide a model, orchestrate arbitrary agents,
+execute an autonomous repair loop or guarantee application correctness.
 
-A coding agent writes code that reads perfectly and does not work, because the parts do not connect. The function it calls exists, but the route it wired to that function is never registered. The variable it reads is spelled correctly, but nothing declares it. The model field it added never made it into a migration. The endpoint it called does not match the shape the API actually returns.
+## One local architecture
 
-These are relational failures. They live in the edges between files, not inside any one file. A language server and an abstract syntax tree both say the code is fine, because every symbol they can see does exist. What is missing is the connection, and a connection is only visible if you reconstruct it.
-
-Concrete failures that ship today, across common stacks:
-
-- A route or URL pattern points at a handler that is not defined, or a handler is defined and never registered on any route.
-- An environment variable is read in code but declared nowhere (no `.env.example`, no settings schema, no config default).
-- A request or response is built in a shape that does not match the declared OpenAPI or schema contract for that endpoint.
-- A model gains a field that no migration adds, or a migration references a column no model has.
-- A feature flag is checked in code but defined in no registry.
-- A dependency is injected but no provider or binding supplies it.
-- A config key is read but does not exist in the actual config file.
-- A background task is dispatched by a name that no task registers, or a task is registered and never dispatched.
-- An import names a package that is not in the lockfile and is not part of the standard library. This is the slopsquatting case, and it is a supply-chain risk, not just a bug.
-
-Every one of these is machine-checkable if the relationships are reconstructed as a graph and the reference is resolved against it. None of them is caught by asking whether a symbol exists.
-
-## 2. Why this is different from what already exists
-
-As of late 2026 there is a crowd of tools that verify symbol existence for agent output. They check whether a function, method, package, or path exists, usually with an abstract syntax tree or a language server, and flag the ones that do not. That problem is real and largely solved by several projects. Building another one adds nothing.
-
-There is also a set of drift tools that watch an external API's schema for breaking changes over time. That is a different problem: it is about a remote contract evolving, not about whether the code an agent just wrote connects to the project's own artifacts.
-
-weftgate occupies the gap between them. It verifies that the code an agent produced connects correctly to the project's own relationships and contracts. Symbol existence is the floor, delegated to a language server where one is available so weftgate is never worse than the symbol-checkers. The value is the edges above that floor, which nobody is checking as a product.
-
-The second difference is measurement. weftgate ships an evaluation harness and an audit mode from day one, because a correctness gate that cannot show it is correct does not earn trust. See section 11.
-
-## 3. Core concepts
-
-Four concepts carry the whole system.
-
-**Oracle.** A component that answers one narrow, exact, machine-checkable question about a relationship, built from the project's own artifacts. The env-var oracle answers "is this used variable declared anywhere the project declares variables." The route oracle answers "does this route resolve to a defined, registered handler." Oracles are plugins. The set of oracles is the product's surface, and the community extends it. This is the platform and the moat.
-
-**Claim.** A single relational assertion to be checked, with a location. Claims come from two places. In diff mode, weftgate extracts them by parsing a code change: the change reads `DATABASE_URL`, so there is a claim that `DATABASE_URL` is declared. In claim mode, an agent states them directly: "I added route POST /users handled by users.create, and tests pass." Diff mode is deterministic and needs no model. Claim mode adds the honesty gate of section 9.
-
-**Verdict.** The result of checking one claim, at one of four levels. `ACCEPT` means it resolved, or there was nothing checkable. `REVIEW` means a soft miss, something that could not be fully resolved and is worth a human glance but is not a proven error. `REJECT` means a hard claim is provably false. `UNVERIFIABLE` means the oracle could not run at all, for example its index has not been built. The gate's overall verdict is the worst level among its findings, with `UNVERIFIABLE` never contributing to a block.
-
-**Soft-fail.** The single most important behavioral rule. weftgate blocks only on a positive, machine-checkable falsehood. Everything else degrades to review, to a suggestion, or to silence. A missing index never rejects. A dynamic or computed reference that cannot be resolved softens to review. A prose-derived claim in claim mode softens from reject to review. A gate that false-blocks gets uninstalled within a day, so the bias is deliberate and strong: when in doubt, do not block.
-
-## 4. Architecture
-
-The data flow has two entry modes feeding one gate.
-
-```
-                 diff mode                         claim mode
-        (file / patch / git diff)          (agent states structured claims)
-                    |                                   |
-              change parser                        claim intake
-                    |                                   |
-                    +----------------+------------------+
-                                     |
-                              enabled oracles
-                       (extract claims in diff mode;
-                        check claims in both modes)
-                                     |
-                            per-oracle index
-                       (SQLite, per-repo, incremental)
-                                     |
-                                   gate
-                    (collect findings, compute verdict,
-                     attach did-you-mean suggestions)
-                                     |
-                    +----------------+------------------+
-                    |                                   |
-              MCP server                          plain CLI
-        (stdio, for agents)              (identical output, for hooks/CI)
+```mermaid
+flowchart TD
+    A[Codex, Claude Code, Cursor, Antigravity or CLI] --> B[Shared tool dispatch]
+    B --> C[Brief and source context]
+    B --> D[Remember, recall and transfer]
+    B --> E[Gate and checkpoint]
+    C --> F[(One repository SQLite store)]
+    D --> F
+    E --> F
+    E --> G[Explicitly enabled test commands]
+    E --> H[Scoped handoff evidence]
+    H --> D
 ```
 
-Components:
+CLI and the standard-library stdio MCP server use the same functions. A `Session`
+loads repository configuration, discovers enabled oracles and synchronizes indexes.
+SQLite holds per-oracle tables, source hashes, changed-node history, notes and
+historical handoff snapshots. Nested transactions roll back partial operations.
+The default store is repository-scoped under the user cache directory. Portable
+exports provide deliberate backups; cache deletion also removes its saved notes.
 
-- **Change parser** (`change.py`) turns a file, a patch, or a git diff into a `Change`: the set of touched files and the added or modified regions. It does not need a full grammar. It gives oracles the raw material to extract claims from.
-- **Oracle registry** (`registry.py`) discovers oracles from installed entry points and from the dotted paths listed in config, and holds the enabled set.
-- **Oracles** (`oracles/`) each build an index from the repo, extract claims from a change, and check claims against their index.
-- **Index store** (`store.py`) is one SQLite database per repo under a user cache directory, namespaced per oracle, built once and synced incrementally on the git commit plus the working-tree diff. No embeddings in the core; relational grounding is a graph and lookup problem, not a semantic-search problem, and keeping it lexical and structural is what makes it fast, dependency-light, and trustworthy.
-- **Gate** (`gate.py`) runs oracles over a change or a claim set, collects findings, computes the overall verdict, and attaches suggestions.
-- **Suggest** (`suggest.py`) produces did-you-mean candidates with bounded-Levenshtein plus token scoring, budget-capped, so a reject is actionable.
-- **Honesty** (`honesty.py`) handles claim-mode assertions about outcomes (tests pass, bug fixed, endpoint returns a status) and grades them by evidence.
-- **Surfaces**: `mcp_server.py` exposes the gate over stdio MCP; `cli.py` is a byte-for-byte-equivalent command-line shim so an MCP-blocked environment loses nothing and the two can never drift.
+| Component | Responsibility |
+| --- | --- |
+| `config`, `store`, `registry`, `oracle` | Configuration, incremental indexes and plugin contract |
+| `change`, `gate`, `suggest` | Parse changes, check claims, aggregate verdicts and suggest repairs |
+| `honesty`, `workflow` | Scoped outcome evidence and current-tree checkpoints |
+| `context`, `payload` | Source pointers and bounded UTF-8 responses |
+| `memory`, `recall`, `privacy` | Grounded claims, lexical notes, freshness and best-effort redaction |
+| `transfer` | Explicit read-only Mnemo import and portable note export/import |
+| `brief` | Combined task context and historical handoff snapshots |
+| `brain`, `cli`, `mcp_server` | Common operations and matching external surfaces |
+| `setup`, `hooks` | Preserve project configuration and emit client-specific gate responses |
+| `eval`, `selftest` | Deterministic fixture mutation, audits and offline validation |
 
-## 5. The oracle plugin interface
+Core operations require only Python's standard library and make no network calls.
+Optional extras and oracle plugins may add capabilities. Explicit test execution
+runs repository code with its own side effects; plugin code is trusted executable
+code selected by configuration, not sandboxed data.
 
-This is the part to get exactly right, because it is what the community builds on. An oracle is any object satisfying this protocol.
+## Verification invariant
 
-```python
-class Oracle(Protocol):
-    name: str                      # unique, e.g. "env_vars"
-    kinds: tuple[str, ...]         # claim kinds it handles, e.g. ("env_var",)
+**Block only on a positive, machine-checkable falsehood.**
 
-    def extract(self, change: Change, ctx: Context) -> list[Claim]:
-        """Pull candidate relational references out of a code change.
-        Diff mode only. Return [] if this oracle finds nothing to check."""
+A `Claim` names a relationship and its location. Oracles extract claims from a
+change or receive structured assertions. Each returns a `Finding` with a reason,
+a verdict and optional suggestions. The aggregate gate rejects if any eligible
+finding rejects, otherwise reviews if any reviews, otherwise accepts.
+`UNVERIFIABLE` findings remain visible but never cause a block.
 
-    def check(self, claim: Claim, ctx: Context) -> Finding:
-        """Resolve one claim against this oracle's index.
-        MUST return UNVERIFIABLE (never REJECT) if the index is absent."""
+An absent index, optional capability, dynamic reference or uncertain declaration
+set cannot establish a falsehood. Prose-derived claims are soft. `ACCEPT` may mean
+nothing checkable was found; it is not a claim that every program behavior works.
+Outcome claims never receive `PROVEN` without matching machine-checkable evidence.
 
-    # Optional:
-    def build(self, ctx: Context) -> None: ...          # build/refresh the index
-    def sync(self, ctx: Context, since: str | None) -> None: ...  # incremental
-    def suggest(self, claim: Claim, ctx: Context) -> list[str]: ...
-```
+The shipped oracles cover environment-variable declarations, Python/Node dependency
+imports, and static FastAPI/Starlette route wiring. There is no claim of universal
+schema, migration, feature-flag, authorization or runtime dispatch verification.
+Each added oracle needs a true positive, true negative and a soft uncertainty case,
+atomic index updates and CLI/MCP parity. See [ORACLES.md](ORACLES.md).
 
-An oracle package exposes a `register(api)` entry point:
+## Memory that keeps its evidence
 
-```python
-def register(api: OracleAPI) -> None:
-    api.register_oracle(EnvVarOracle())
-```
+Explicit notes are bounded prose plus optional file, env, route, import or symbol
+claims. Proven false claims refuse a write; unavailable evidence is retained for
+review. Text itself remains untrusted and semantically unverified.
 
-Config enables oracles by name or dotted path:
+Anchors retain their original hashes. Reads re-check them without rewriting that
+evidence. Changed, missing or uncheckable anchors hide notes by default until the
+user reviews and explicitly replaces them. Imports preserve this lifecycle; a new
+checkout never manufactures fresh grounding for an old note. Import declarations
+are hashed conservatively, not used as proof of installed package behavior.
 
-```toml
-# weftgate.toml
-[weftgate]
-oracles = ["env_vars", "imports_lockfile", "routes_fastapi", "yourpkg.your_oracle"]
-```
+Mnemo's local lexical memory, grounding and redaction designs are adapted into this
+package. The importer reads selected reviewed records without importing Mnemo's
+Python modules or enabling capture. Legacy transcript distillation, embeddings and
+team federation remain separate opt-in workflows. See [MEMORY.md](MEMORY.md) and
+[MNEMO-MIGRATION.md](MNEMO-MIGRATION.md).
 
-The invariant every oracle must honor is the soft-fail rule. An oracle that cannot resolve a reference for any reason other than a proven absence must return `REVIEW` or `UNVERIFIABLE`, not `REJECT`. Reviewers of new oracles enforce this. It is the difference between a tool people keep and a tool people rip out.
+## Context and handoffs
 
-## 6. Indexing substrate
+`brief` interleaves relevant current notes with source references under one response
+budget. Focused `card`, `resolve` and `neighbors` calls remain available. Results
+contain pointers and static relationships, not complete file bodies or env values.
+The default budget is 1,500 estimated tokens enforced as 6,000 UTF-8 JSON bytes.
+Token estimates are not exact model tokenization or measured savings.
 
-One SQLite file per repo, at `~/.cache/weftgate/<repo-hash>.sqlite`, outside the repo. A `meta` table records the schema version, the repo root, the git commit the index was built at, and per-oracle build metadata. Each oracle owns its own tables, prefixed with its name.
+`checkpoint` checks current staged, unstaged and untracked changes. Configured tests
+run only with explicit opt-in and an allowlist. Tree fingerprints detect source
+changes during execution. `handoff` saves a summary with a historical snapshot of
+that checkpoint; later recall reports whether the tree still matches. Re-run tests
+before the next handoff even when an old fingerprint matches.
 
-Build once, sync incrementally. A full build parses the whole repo. `sync` reindexes only the files that changed since the recorded commit, plus the working-tree diff, so a no-op sync is well under a second and a single changed file is about a second. Sync runs before every check so the gate is never stale. A structural rebuild must never discard expensive index state that is still valid; preserve and restore per-oracle tables across rebuilds the way a careful cache does.
+Editor hooks request bounded repair continuations for proven failures. Client
+trust and policy remain authoritative. A hook cannot certify every editor build or
+force all paths through a gate. Required CI checks and branch protection provide
+the repository merge boundary. See [WORKFLOWS.md](WORKFLOWS.md).
 
-Parsing is tiered so the tool installs and runs with nothing heavy, and gets sharper when optional extras are present.
+## Validation and limits
 
-- **Tier 0, always, standard library only.** The relational oracles that are structured file reads: env vars, config keys, imports against the lockfile, framework routes read from the framework's own registration files. These are the differentiators, and they are cheap and dependency-free. This ordering is deliberate: the commodity work (symbol existence) is the part that needs heavy tooling, and the distinctive work (edges) is the part that does not.
-- **Tier 1, optional extras.** Tree-sitter for cross-language structural extraction, and a language-server client for authoritative symbol resolution. Installed via `pip install weftgate[treesitter]` or `weftgate[lsp]`. When absent, oracles that depend on them return `UNVERIFIABLE`, never a false reject.
+The tests cover deterministic verdicts, rollback, stale-source suppression,
+malformed migration input, read-only source access, secret scrubbing, CLI/MCP parity,
+byte budgets, hook protocols and observed test outcomes. CI runs supported Python
+versions on Linux plus macOS and Windows, a core-only environment and packaging.
+[VALIDATION.md](VALIDATION.md) records completed runs and release evidence.
 
-## 7. Verdict semantics
-
-| Level | Meaning | Blocks in hook or CI | Example |
-|---|---|---|---|
-| `ACCEPT` | Resolved, or nothing checkable | no | route resolves to a registered handler |
-| `REVIEW` | Soft miss, cannot fully resolve | no | handler name is computed at runtime |
-| `REJECT` | Hard claim provably false | yes | env var read, declared nowhere |
-| `UNVERIFIABLE` | Oracle could not run | no | index not built, extra not installed |
-
-The overall gate verdict is the worst blocking-eligible level among findings: `REJECT` if any, else `REVIEW` if any, else `ACCEPT`. `UNVERIFIABLE` findings are reported but never raise the overall verdict. Every `REJECT` carries did-you-mean suggestions when the oracle can produce them, so the output is a fix and not just a complaint.
-
-## 8. Reference oracles for v1
-
-Ship a small set that proves the pattern across more than one stack and includes both a differentiator and the table-stakes import guard. Each is a worked example the community copies.
-
-1. **env_vars** (Tier 0, any stack). Extracts environment reads (`os.environ[...]`, `os.getenv(...)`, `process.env.X`, `ENV["X"]`) and checks each against the union of declared sources: `.env.example`, `.env.sample`, a settings or config schema, and defaults in code. A used var declared nowhere is a `REJECT` with the closest declared name suggested.
-2. **imports_lockfile** (Tier 0, Python and Node to start). Checks that every third-party top-level import resolves to a package in the lockfile (`poetry.lock`, `uv.lock`, `requirements.txt`, `package-lock.json`, `pnpm-lock.yaml`) or the standard library. A phantom package is a `REJECT`. This is the slopsquatting guard, present so users need no second tool, but it is not the headline.
-3. **routes_fastapi** (Tier 0, FastAPI as the first framework). Builds the route table from the app's own decorators and routers, and checks that each route's endpoint resolves to a defined function, and, in claim mode, that a stated route exists. A route to a missing endpoint is a `REJECT`. This is the first true edge oracle and the template for Django, Flask, Express, Rails, and Next.js oracles that follow.
-
-The v1 goal is not breadth. It is three oracles that are correct, measured, and copyable, so oracle four is written by someone else.
-
-## 9. The honesty gate (claim mode)
-
-When an agent asserts an outcome rather than a reference, weftgate grades it by evidence and refuses to rubber-stamp. Outcome claims: tests pass, a bug is fixed, an endpoint returns a given status. Verdicts:
-
-| Verdict | Condition |
-|---|---|
-| `PROVEN` | Machine-checkable evidence was observed and matches the claim exactly |
-| `PLAUSIBLE` | Weaker evidence is consistent with the claim but does not pin it |
-| `NOT_OBSERVED` | No evidence was supplied or found |
-| `CONTRADICTED` | Evidence shows the claim is false |
-
-The rule that makes this more than a slogan: never `PROVEN` without a matching machine-checkable signal. For "tests pass," that is an exit code of zero from a named command weftgate can re-run, or a parsed test report. For "endpoint returns 200," that is an actual probe. A claim with no evidence is `NOT_OBSERVED`, and the agent is told what evidence would settle it. This mirrors the discipline that a reproduction is only real when the specific signature was observed, generalized to any outcome claim.
-
-## 10. Cross-agent surfaces
-
-One gate, four ways to reach it, so weftgate works everywhere an agent runs.
-
-- **MCP server** over stdio, tools: `check_change` (verify a file, patch, or diff), `check_claim` (verify structured claims, including honesty), `audit` (sweep the repo, section 11), `suggest` (did-you-mean for one reference), `index_status`. Works with Claude Code, Codex, Cursor, Antigravity, Windsurf, and any MCP client.
-- **Plain CLI** with identical output, so an MCP-blocked org loses nothing and the two surfaces cannot drift: `weftgate check <path|->`, `weftgate claim <json>`, `weftgate audit`, `weftgate index`, `weftgate eval`.
-- **Hooks.** A Claude Code PreToolUse hook that vets every Edit and Write before it lands. A git pre-commit hook. Both call the CLI and block only on `REJECT`.
-- **CI action.** A GitHub Action that runs `weftgate check` on the pull request diff and `weftgate audit` on a schedule.
-
-A setup command detects the stack, enables the right oracles, builds the index, and writes the agent and hook configuration, so adoption is one command.
-
-## 11. Measurement, and the audit growth loop
-
-Trust is the product. Two harnesses, both shipped.
-
-- **Mutation harness** (`eval/mutate.py`). Inject known-bad edges into a real repo: rename a handler so a route dangles, delete an env declaration, point an import at a phantom package, and confirm the gate detects and blocks each. Deterministic by seed. Count a detection with no usable suggestion as a miss, so there is no survivorship bias. Report detected and blocked separately, per oracle. This answers "does the gate catch what it claims to."
-- **Audit mode** (`eval/audit.py`, and the `audit` surface). Run the gate over the existing, already-merged codebase and surface the latent broken edges that are already there. This is both a correctness check and the adoption loop: a developer runs `weftgate audit` on their own repo, sees a real count of broken wires they did not know about, and that surprise is the reason they install it and tell someone. The field-audit result is the most credible number the project can have, because the user generates it on their own code.
-
-Honesty rule for all reported numbers: any figure tuned on the same repo it was measured on is labeled an upper bound, not a field number. The audit result on the user's own untouched code is the number that carries weight.
-
-## 12. Configuration
-
-Precedence: `WEFTGATE_*` environment variables, then repo `weftgate.toml` or `.weftgate.json`, then a user config, then defaults. Stack is auto-detected but can be pinned. Minimal example:
-
-```toml
-[weftgate]
-oracles = ["env_vars", "imports_lockfile", "routes_fastapi"]
-block_on = "reject"          # reject | review | never
-env_declared_in = [".env.example", "settings.py"]
-
-[weftgate.routes_fastapi]
-app = "app.main:app"
-```
-
-## 13. Non-goals
-
-Naming them protects the focus.
-
-- Not a semantic code search or retrieval tool. That category is well served; integrate with it, do not rebuild it.
-- Not an agent memory. A separate concern with its own mature tools.
-- Not a symbol-existence checker as its headline. Symbol existence is the delegated floor; the edges are the product.
-- No autofix in v1. Suggest, do not apply. Applying edits is a v2 decision with its own risk surface.
-- Not an IDE, an agent framework, or a linter replacement.
-
-## 14. Roadmap
-
-- **v0.1.** Core gate, verdict types, registry, SQLite store with incremental sync, the three reference oracles, the CLI, the MCP server, the mutation harness, the audit mode, the self-test, and the one-command setup. Diff mode complete. Claim mode with the env and route oracles and the honesty gate for "tests pass."
-- **v0.2.** More framework route oracles (Django, Flask, Express, Next.js), the config-key oracle, the feature-flag oracle, the tree-sitter and LSP tiers, the GitHub Action.
-- **v0.3.** The migration-vs-model oracle, the OpenAPI-contract oracle, the DI-binding oracle, and a published oracle-authoring guide with a cookiecutter template so writing oracle N is an afternoon.
-- **Later.** Optional performance path (tree-sitter or a native accelerator for large repos), an oracle registry index so users can discover community oracles, and optional integration points for memory and search tools rather than reimplementations.
-
-## 15. What makes this a top repo, honestly
-
-Three things have to be true, and the design aims all three at once. It has to do one sharp thing that nobody else does, which is relational and contract grounding rather than symbol existence. It has to prove it works, which is the mutation harness and the audit loop. And it has to be trivial to adopt and extend, which is the one-command setup, the four surfaces, and the oracle plugin interface. The extensibility is where the original "one repo for everything" instinct belongs: not many tools in one repo, but one gate that the community teaches about every stack, one oracle at a time.
+Mutation scores are fixture results, not field accuracy. Static coverage remains
+limited to implemented contracts. Token optimization means bounded useful context
+and observable payload costs; any savings claim needs a defined task, baseline,
+model and equal-quality outcome. Broader language/framework coverage, semantic
+retrieval and remote collaboration require separately designed capabilities.

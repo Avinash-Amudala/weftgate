@@ -57,27 +57,13 @@ the tool does not solve a problem for those visitors.
 Local verification for coding agents: catch broken env, import, and FastAPI route
 references. CLI, MCP, hooks, and GitHub Action. No API key.
 
-### Show HN
+### Show HN: human-authored submission
 
-Title: **Show HN: Weftgate – a local verification gate for AI-written code**
-
-I’m building Weftgate to catch a narrow class of failures in coding-agent output:
-references that don’t connect to a repository’s own declarations. It checks env names,
-imports against dependency metadata, and FastAPI route/handler wiring.
-
-For example, a read of DATABSE_URL can produce a rejection with DATABASE_URL as a
-suggestion. Runtime-computed names stay advisory. It’s a stdlib-only Python core with
-a CLI, stdio MCP server, hooks, and a GitHub Action. There’s a small reproducible demo
-and a mutation harness; fixture results are explicitly labeled as such.
-
-Try it: `pip install weftgate`, then `weftgate audit` in a repository. I’d especially
-like feedback on false blocks and the edge cases in your stack. Supported behavior
-and limitations are documented in the README.
-
-https://github.com/Avinash-Amudala/weftgate
-
-Submit only when the maintainer is available to discuss the work, and after reviewing
-[Show HN’s guidelines](https://news.ycombinator.com/showhn.html). Do not organize votes.
+The maintainer should submit the repository link with a factual title beginning
+“Show HN”, explain their own motivation, and be available to discuss it personally.
+Do not paste AI-generated introductory comments or replies: the
+[HN discussion guidelines](https://news.ycombinator.com/newsguidelines.html) prohibit
+generated and AI-edited text in comments. Never solicit votes or coordinated comments.
 
 ### LinkedIn / personal technical post
 

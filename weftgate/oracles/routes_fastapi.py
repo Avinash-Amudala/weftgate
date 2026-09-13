@@ -401,7 +401,7 @@ class RoutesFastAPIOracle(BaseOracle):
             r = loose[0]
             return self.review(
                 claim,
-                f"{r.method} {r.known_tail()} exists in {r.file} under a prefix weft could "
+                f"{r.method} {r.known_tail()} exists in {r.file} under a prefix weftgate could "
                 f"not resolve (name the root app in [weftgate.routes_fastapi] app = "
                 f'"pkg.mod:var" to make this exact); cannot confirm {claim.subject}',
             )
@@ -515,7 +515,7 @@ class _Route:
     prefix: str = ""  # the router's own prefix, known even when the chain above is not
 
     def known_tail(self) -> str:
-        """The part of the path weft is sure about: router prefix plus route path."""
+        """The part of the path weftgate is sure about: router prefix plus route path."""
         return _norm_path(self.prefix + self.path)
 
 

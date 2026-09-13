@@ -91,6 +91,7 @@ def test_rename_updates_config_env_and_package_without_editing_itself(tmp_path):
     write(root, "oldgate/__init__.py", 'NAME = "oldgate"\n')
     write(root, "oldgate.toml", '[oldgate]\nblock_on = "reject"\n')
     write(root, "README.md", "import oldgate\nOLDGATE_CACHE=x\n")
+    (tmp_path / "windows.txt").write_bytes(b"oldgate\r\n")
     script = Path(__file__).parents[1] / "scripts/rename.sh"
     (tmp_path / "scripts").mkdir()
     shutil.copy2(script, tmp_path / "scripts/rename.sh")
@@ -106,3 +107,4 @@ def test_rename_updates_config_env_and_package_without_editing_itself(tmp_path):
     assert (tmp_path / "newgate.toml").read_text().startswith("[newgate]")
     assert "NEWGATE_CACHE" in (tmp_path / "README.md").read_text()
     assert (tmp_path / "scripts/rename.sh").read_bytes() == script.read_bytes()
+    assert (tmp_path / "windows.txt").read_bytes() == b"newgate\r\n"

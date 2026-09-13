@@ -51,7 +51,7 @@ for rel in files:
     result = re.sub(r"\b" + re.escape(old) + r"\b", new, text)
     result = re.sub(r"\b" + re.escape(old.upper()) + "_", new.upper() + "_", result)
     if result != text:
-        path.write_text(result, encoding="utf-8")
+        path.write_bytes(result.encode("utf-8"))
         count += 1
 print(f"renamed {old} -> {new} ({count} text files)")
 print(f"Next: pip uninstall -y {old}; pip install -e '.[all,dev]'")

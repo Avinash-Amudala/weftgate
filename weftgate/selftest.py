@@ -262,8 +262,11 @@ def _checks(root: str, store: str) -> list[Check]:
             memory.register(_Api)
             _expect(set(registered) == {"env", "routes", "imports"}, f"plugin kinds {registered}")
             check_env = registered["env"][1]
-            _expect(check_env("DATABSE_URL", True, root)["status"] == "reject", "declared typo")  # type: ignore[operator]
-            _expect(check_env("DATABSE_URL", False, root)["status"] == "review", "prose typo")  # type: ignore[operator]
+            try:
+                _expect(check_env("DATABSE_URL", True, root)["status"] == "reject", "declared typo")  # type: ignore[operator]
+                _expect(check_env("DATABSE_URL", False, root)["status"] == "review", "prose typo")  # type: ignore[operator]
+            finally:
+                memory.close_sessions()  # the plugin caches a Session per repo
 
     return [
         ("index builds", index_builds),

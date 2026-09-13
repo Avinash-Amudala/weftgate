@@ -146,6 +146,8 @@ def test_mnemo_plugin_protocol(tmp_path, monkeypatch):
         "review",
         "unverifiable",
     )
+    memory.close_sessions()
+    assert memory._SESSIONS == {}
 
 
 def test_memory_surfaces_agree(tmp_path, capsys):

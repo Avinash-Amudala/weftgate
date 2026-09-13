@@ -345,6 +345,18 @@ def _session_for(repo_root: str) -> Session:
     return s
 
 
+def close_sessions() -> None:
+    """Close the sessions the plugin path caches (one per repo). Call it when the
+    host process is done, or before removing a repo's cache directory: an open
+    SQLite file cannot be deleted on Windows."""
+    for s in _SESSIONS.values():
+        try:
+            s.close()
+        except Exception:  # noqa: BLE001
+            pass
+    _SESSIONS.clear()
+
+
 def _ledger(
     kind: str,
     value: str,

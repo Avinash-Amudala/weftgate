@@ -18,6 +18,10 @@ The checks are bound to GitHub Actions (app ID `15368`). Keep this list and the 
 policy aligned when changing the CI matrix, otherwise pull requests may wait for a
 check that no longer exists.
 
+`GitGuardian Security Checks` is also required and bound to the GitGuardian app
+(ID `46505`), for nine required checks in total. Investigate a failed scan and
+resolve real exposures or classify confirmed test fixtures before merging.
+
 Protection applies to administrators. Force pushes and branch deletion are disabled.
 Linear history and resolved review conversations are required. Stale approvals are
 dismissed. Because this repository currently has one maintainer, the required number

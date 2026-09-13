@@ -36,7 +36,8 @@ separate activation step. Weftgate's configured test checkpoint observed passing
 tests with an unchanged tree fingerprint. GitHub `main` protection was enabled on
 September 13, 2026: pull requests, eight required CI jobs, up-to-date branches,
 resolved conversations, linear history and administrator enforcement. Force pushes
-and branch deletion are blocked. See [repository protection](REPOSITORY-PROTECTION.md).
+and branch deletion are blocked. The GitGuardian security check is also required.
+See [repository protection](REPOSITORY-PROTECTION.md).
 GitHub secret scanning, push protection, vulnerability alerts and Dependabot
 security updates are enabled. These settings apply to the public Weftgate repository.
 

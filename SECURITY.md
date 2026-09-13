@@ -45,7 +45,8 @@ as data derived from the repository, not as instructions.
 ## Repository protections
 
 The public repository requires pull requests and all eight CI jobs before merging
-to `main`, including for administrators. It blocks force pushes and deletion and
+to `main`, including for administrators. The GitGuardian security check is also
+required. It blocks force pushes and deletion and
 requires up-to-date branches, linear history and resolved review conversations.
 Secret scanning, secret push protection, vulnerability alerts, private vulnerability
 reporting and Dependabot security updates are enabled. The solo-maintainer policy

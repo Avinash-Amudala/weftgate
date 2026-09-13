@@ -94,8 +94,14 @@ def test_rename_updates_config_env_and_package_without_editing_itself(tmp_path):
     script = Path(__file__).parents[1] / "scripts/rename.sh"
     (tmp_path / "scripts").mkdir()
     shutil.copy2(script, tmp_path / "scripts/rename.sh")
+    shutil.copy2(script.with_suffix(".py"), tmp_path / "scripts/rename.py")
     git_commit_all(root)
-    subprocess.run(["bash", "scripts/rename.sh", "newgate"], cwd=root, check=True)
+    command = (
+        [os.sys.executable, "scripts/rename.py"]
+        if os.name == "nt"
+        else ["bash", "scripts/rename.sh"]
+    )
+    subprocess.run([*command, "newgate"], cwd=root, check=True)
     assert (tmp_path / "newgate/__init__.py").read_text() == 'NAME = "newgate"\n'
     assert (tmp_path / "newgate.toml").read_text().startswith("[newgate]")
     assert "NEWGATE_CACHE" in (tmp_path / "README.md").read_text()

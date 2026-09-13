@@ -442,6 +442,7 @@ class RoutesFastAPIOracle(BaseOracle):
             if app_file is not None and var.strip():
                 routers[(app_file, var.strip())] = ("app", "")
         includes: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
+        unresolved: list[_Route] = []
         for file, _line, parent, child, prefix in ns.query(
             "SELECT file, line, parent, child, prefix FROM {t:includes}"
         ):
@@ -464,9 +465,13 @@ class RoutesFastAPIOracle(BaseOracle):
                     key = (file, head)
                 else:
                     key = None
+            if key is None or key not in routers:
+                unresolved.append(
+                    _Route(file, int(_line), "?", "?", child, "dynamic", "include", None)
+                )
             if key is not None:
                 includes.setdefault(key, []).append((file, str(parent), str(prefix)))
-        out: list[_Route] = []
+        out: list[_Route] = list(unresolved)
         for file, line, method, path, handler, hkind, style, router in ns.query(
             "SELECT file, line, method, path, handler, handler_kind, style, router FROM {t:routes}"
         ):

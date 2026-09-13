@@ -250,3 +250,46 @@ def test_diff_uses_context_to_avoid_docstring_and_optional_import_false_blocks(t
         result = session.check_change(Change.from_unified_diff(diff))
         assert result.verdict is Level.REVIEW
         assert [f.claim.subject for f in result.findings] == ["optional_phantom_zz"]
+
+
+def test_factory_router_prevents_proving_route_absence(tmp_path):
+    write(
+        str(tmp_path),
+        "app.py",
+        "from fastapi import FastAPI\napp = FastAPI()\napp.include_router(create_router())\n",
+    )
+    with Session(str(tmp_path), store_path=":memory:") as session:
+        result = session.check_claims(
+            [Claim("route_handler", "GET /runtime-route", Location(""), source="assertion")]
+        )
+        assert result.verdict is Level.REVIEW
+
+
+def test_opt_in_probe_reports_redirect_without_following_it():
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    from weftgate.honesty import _probe
+
+    hits = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            hits.append(self.path)
+            self.send_response(302)
+            self.send_header("Location", "/must-not-be-requested")
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    try:
+        assert _probe(f"http://127.0.0.1:{server.server_port}/start", "GET", 2) == 302
+        assert hits == ["/start"]
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=3)

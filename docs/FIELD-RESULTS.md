@@ -1,4 +1,8 @@
-# Field results
+# Historical field results
+
+These archived observations predate the release hardening. They are not fresh
+measurements of the current version, an independent false-positive evaluation, or
+proof that the target projects fail at runtime. Re-run the pinned revisions to compare.
 
 The design's own rule (DESIGN.md section 11): a number measured on the repo the oracles
 were tuned on is an upper bound; the number that carries weight is the one weftgate
@@ -100,20 +104,9 @@ proven. weftgate reviews with the suggestion attached (`did you mean sqlalchemy?
 of rejecting. Committing a lockfile (`uv.lock`, `poetry.lock`, `package-lock.json`, or a
 fully pinned `requirements.txt`) turns those into rejects.
 
-There is a second way absence becomes provable without a lockfile: when weftgate runs
-inside the project's own environment. If the mandatory dependencies of the project
-are installed in the interpreter running weftgate, the environment demonstrably matches
-the project, and a name installed nowhere is rejected. Re-running `fastapi-users`
-from a virtual environment with its dependencies installed:
-
-| Repository | Environment | Mutations | Detected | Blocked | Suggested | Misses |
-|---|---|---:|---:|---:|---:|---:|
-| fastapi-users | weftgate's own venv | 8 | 8 | 4 | 4 | 4 |
-| fastapi-users | the project's venv | 8 | 8 | **8** | **8** | **0** |
-
-The audit inside the project's venv is unchanged (0 rejects): nothing in the repo is
-actually broken, and the extra evidence only sharpens verdicts on the *injected*
-breakage.
+The pre-release environment-coverage heuristic was removed during release review:
+a partially matching environment cannot prove that all transitive dependencies are
+installed. Manifest-only absence now reviews regardless of installed-tool coverage.
 
 ## What the field run changed in weftgate
 
@@ -137,7 +130,7 @@ what real code does:
 
 ```bash
 git clone --depth 1 https://github.com/Netflix/dispatch && cd dispatch
-pip install weftgate            # after the rename; or pip install -e /path/to/weftgate
+pip install weftgate            # or pip install -e /path/to/weftgate
 weftgate index --rebuild && weftgate audit && weftgate eval mutate --seed 13 --count 4
 ```
 

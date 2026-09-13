@@ -391,7 +391,12 @@ class ImportsLockfileOracle(BaseOracle):
         changed = ctx.store.sync_files(since)
         # Manifests are few; any manifest or top-level layout change means a cheap
         # full rebuild is the simplest correct answer.
-        if any(_manifest_lang(os.path.basename(p)) or p.count("/") <= 1 for p in changed):
+        if any(
+            _manifest_lang(os.path.basename(p))
+            or p.count("/") <= 1
+            or p.endswith(("__init__.py", "tsconfig.json", "jsconfig.json"))
+            for p in changed
+        ):
             self.build(ctx)
 
     def _index(self, ctx: Context, lang: str) -> _Index | None:
@@ -513,10 +518,8 @@ class ImportsLockfileOracle(BaseOracle):
                 f"root in pyproject.toml to make this exact)",
             )
         sugg = did_you_mean(top, index.dist_names() | index.local)
-        coverage = index.env_coverage(claim.location.file)
-        if not index.has_lockfile and coverage < 0.6:
-            # Manifests list direct dependencies only. Without a lockfile, and without an
-            # environment that demonstrably matches the project, absence is not proven.
+        if not index.has_lockfile_for(claim.location.file):
+            # A partially matching environment cannot prove the complete dependency tree.
             hint = f"; did you mean {sugg[0]}?" if sugg else ""
             return self.review(
                 claim,
@@ -526,11 +529,6 @@ class ImportsLockfileOracle(BaseOracle):
                 sugg,
             )
         where = ", ".join(index.lockfiles or index.sources)
-        if not index.has_lockfile:
-            where += (
-                f" and not installed in this environment (which has "
-                f"{coverage:.0%} of the project's required packages)"
-            )
         reason = f"import {top!r} is not in {where} or the standard library (slopsquat risk)"
         return self.reject(claim, reason, sugg)
 
@@ -580,7 +578,7 @@ class ImportsLockfileOracle(BaseOracle):
                 f"are; probably a framework-resolved sub-path rather than a phantom",
                 sugg,
             )
-        if not index.has_lockfile:
+        if not index.has_lockfile_for(claim.location.file):
             hint = f"; did you mean {sugg[0]}?" if sugg else ""
             return self.review(
                 claim,
@@ -623,35 +621,25 @@ class _Index:
         self.dirs = dirs or set()
         self.lockfiles = lockfiles or []  # sources that enumerate the whole resolved tree
         self.core = core or {}  # manifest -> mandatory (non-optional, non-dev) dist names
-        self._coverage: dict[str, float] = {}
 
-    @property
-    def has_lockfile(self) -> bool:
-        return bool(self.lockfiles)
+    def has_lockfile_for(self, from_file: str) -> bool:
+        """Only a lock in the importing file's nearest project proves absence.
 
-    def env_coverage(self, from_file: str = "") -> float:
-        """Share of the *mandatory* dependencies of the importing file's project that are
-        installed in this interpreter. When high, the running environment is the
-        project's own, and a name installed nowhere is a much stronger absence signal
-        than a manifest alone. Optional and dev groups are excluded so a partial
-        install does not hide the signal."""
-        if self.lang != "python":
-            return 0.0
-        project = _nearest_project_dir(from_file, self.core)
-        if project in self._coverage:
-            return self._coverage[project]
-        wanted: set[str] = set()
-        for source, names in self.core.items():
-            if os.path.dirname(source) == project:
-                wanted |= names
-        if not wanted:
-            wanted = {n for names in self.core.values() for n in names}
-        if not wanted:
-            self._coverage[project] = 0.0
-            return 0.0
-        installed = _installed_dist_names()
-        self._coverage[project] = len(wanted & installed) / len(wanted)
-        return self._coverage[project]
+        A nested app's lock cannot establish the root app's dependency tree.
+        Workspace inheritance we cannot establish conservatively reviews.
+        """
+        parent = os.path.dirname(from_file)
+        candidates = {
+            os.path.dirname(source)
+            for source in self.sources
+            if not os.path.dirname(source)
+            or parent == os.path.dirname(source)
+            or parent.startswith(os.path.dirname(source) + "/")
+        }
+        if not candidates:
+            return False
+        nearest = max(candidates, key=len)
+        return any(os.path.dirname(source) == nearest for source in self.lockfiles)
 
     def dist_names(self) -> set[str]:
         return {d for hits in self.provided.values() for d, _ in hits}
@@ -663,7 +651,7 @@ class _Index:
 def _extract_python(region: Region) -> list[Claim]:
     text = region.text()
     lines = region.lines()
-    line_map = {i + 1: ln for i, (ln, _) in enumerate(lines)}
+    line_map = {} if region.whole_file else {i + 1: ln for i, (ln, _) in enumerate(lines)}
     try:
         tree = ast.parse(text)
     except (SyntaxError, ValueError):
@@ -973,8 +961,8 @@ def _parse_manifest(base: str, text: str, ctx: Context, rel: str) -> tuple[set[s
             case _:
                 if base.startswith("requirements"):
                     return _parse_requirements(text), set()
-    except (ValueError, TypeError, AttributeError, configparser.Error):
-        return set(), set()
+    except (ValueError, TypeError, AttributeError, configparser.Error) as exc:
+        raise ValueError(f"cannot parse dependency metadata {rel}: {exc}") from exc
     return set(), set()
 
 

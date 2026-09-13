@@ -1,0 +1,19 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:07.000
+Looks right. Doesn’t connect. Verify env, import, and route references.
+
+00:00:07.000 --> 00:00:14.000
+Three mistakes: requestz, DATABSE_URL, and the helth handler.
+
+00:00:14.000 --> 00:00:27.000
+Weftgate rejects all three and suggests requests, DATABASE_URL, and health.
+
+00:00:27.000 --> 00:00:36.000
+Correct the references. Run the same check. ACCEPT, exit code 0.
+
+00:00:36.000 --> 00:00:44.000
+A dynamic environment key returns REVIEW, exit code 0.
+
+00:00:44.000 --> 00:00:52.000
+Install weftgate and audit your repository. CLI, MCP, GitHub Action, and hooks.

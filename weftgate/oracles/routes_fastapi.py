@@ -344,6 +344,8 @@ class RoutesFastAPIOracle(BaseOracle):
             return self.accept(claim, f"{what} {ref!r} resolves to {target_file}")
         if "*" in symbols:
             return self.review(claim, f"{what} {ref!r}: {target_file} has a star import")
+        if "__getattr__" in symbols:
+            return self.review(claim, f"{target_file} supplies module attributes dynamically")
         sugg = did_you_mean(head, _names_of_kind(symbols, ("def", "class", "assign", "import")))
         return self.reject(claim, f"{what} {ref!r}: {target_file} defines no {head!r}", sugg)
 
@@ -402,6 +404,10 @@ class RoutesFastAPIOracle(BaseOracle):
                 f"{r.method} {r.known_tail()} exists in {r.file} under a prefix weft could "
                 f"not resolve (name the root app in [weftgate.routes_fastapi] app = "
                 f'"pkg.mod:var" to make this exact); cannot confirm {claim.subject}',
+            )
+        if any(r.method == "?" or "?" in r.path or r.full is None or "?" in r.full for r in table):
+            return self.review(
+                claim, "dynamic route registration prevents proving this route absent"
             )
         same_method = sorted(
             {

@@ -143,8 +143,16 @@ class Policy:
         m = re.match(r"^[a-z][a-z0-9+.-]*://(?:[^@/]+@)?(\[[^\]]+\]|[^:/?#]+)", url, re.I)
         if not m:
             return False
-        host = m.group(1).lower()
-        return host in {h.lower() for h in self.allow_hosts}
+        from urllib.parse import urlsplit
+
+        try:
+            parsed = urlsplit(url)
+            host = (parsed.hostname or "").lower()
+        except ValueError:
+            return False
+        return parsed.scheme in ("http", "https") and host in {
+            h.lower().strip("[]") for h in self.allow_hosts
+        }
 
 
 def grade(claim: OutcomeClaim, policy: Policy | None = None) -> OutcomeVerdict:
@@ -290,16 +298,31 @@ def _parse_junit(path: str) -> tuple[int, int, int] | None:
     suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
     if not suites and root.tag != "testsuites":
         return None
-    tests = failures = errors = 0
-    for suite in suites:
-        tests += _int_attr(suite, "tests")
-        failures += _int_attr(suite, "failures")
-        errors += _int_attr(suite, "errors")
-    if tests == 0 and suites:
-        tests = sum(1 for _ in root.iter("testcase"))
-        failures = sum(1 for _ in root.iter("failure"))
-        errors = sum(1 for _ in root.iter("error"))
-    return tests, failures, errors
+    # Summary attributes are advisory: explicit failures must always win, even
+    # when a producer leaves stale or contradictory counts on an outer suite.
+    leaves = [
+        suite
+        for suite in suites
+        if not any(child is not suite for child in suite.iter("testsuite"))
+    ]
+    counts = [
+        (name, node.get(name))
+        for node in suites
+        for name in ("tests", "failures", "errors", "skipped")
+    ]
+    try:
+        if any(value is not None and int(value) < 0 for _, value in counts):
+            return None
+        for _, value in counts:
+            if value is not None:
+                int(value)
+    except ValueError:
+        return None
+    tests = max(sum(_int_attr(s, "tests") for s in leaves), len(list(root.iter("testcase"))))
+    failures = max(sum(_int_attr(s, "failures") for s in suites), len(list(root.iter("failure"))))
+    errors = max(sum(_int_attr(s, "errors") for s in suites), len(list(root.iter("error"))))
+    skipped = max(sum(_int_attr(s, "skipped") for s in leaves), len(list(root.iter("skipped"))))
+    return max(0, tests - skipped), failures, errors
 
 
 def _int_attr(node: ElementTree.Element, name: str) -> int:
@@ -365,10 +388,26 @@ def _grade_endpoint(claim: OutcomeClaim, policy: Policy) -> OutcomeVerdict:
     return OutcomeVerdict(Honesty.NOT_OBSERVED, f"no probe of {url} supplied", needed=needed)
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        # Observe the requested endpoint's response; do not follow a local URL
+        # into an unapproved remote host or mistake its status for the original.
+        return None
+
+
 def _probe(url: str, method: str, timeout: int) -> int | None:
-    req = urllib.request.Request(url, method=method.upper())
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - local only
+        req = urllib.request.Request(url, method=method.upper())
+        opener = urllib.request.build_opener(_NoRedirect(), urllib.request.ProxyHandler({}))
+        with opener.open(req, timeout=timeout) as resp:
             return int(resp.status)
     except urllib.error.HTTPError as exc:
         return int(exc.code)

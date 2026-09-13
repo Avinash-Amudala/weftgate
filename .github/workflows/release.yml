@@ -1,45 +1,65 @@
 name: release
-# Tag a version to publish: `git tag v0.1.0 && git push origin v0.1.0`.
-# Publishing uses PyPI trusted publishing (no token in the repo): register this
-# workflow as a trusted publisher for the project on PyPI first, and make sure
-# the distribution name in pyproject.toml is one you own (see scripts/rename.sh).
 on:
   push:
     tags: ["v*"]
+permissions:
+  contents: read
 jobs:
+  validate:
+    uses: ./.github/workflows/ci.yml
   build:
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: pip install -e ".[all,dev]" build twine
-      - run: ruff check . && mypy weftgate && python -m weftgate.selftest && pytest -q
-      - name: tag matches the package version
+      - run: pip install build twine
+      - name: Tag matches the package version
         run: |
           set -euo pipefail
           v=$(python -c "import weftgate; print(weftgate.__version__)")
-          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "tag ${GITHUB_REF_NAME} != v$v"; exit 1; }
+          [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "tag does not match package version"; exit 1; }
       - run: python -m build && twine check dist/*
       - uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist/
+          if-no-files-found: error
   publish:
     needs: build
     runs-on: ubuntu-latest
-    environment: pypi
+    environment:
+      name: pypi
+      url: https://pypi.org/project/weftgate/
     permissions:
       id-token: write
-      contents: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
-      - name: GitHub release
+        with:
+          skip-existing: true
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" --notes-file <(sed -n "/^## \[${GITHUB_REF_NAME#v}\]/,/^## \[/p" CHANGELOG.md | sed '$d')
+        run: |
+          set -euo pipefail
+          python scripts/release_notes.py "$GITHUB_REF_NAME" > release-notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* docs/assets/weftgate-demo.mp4 \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md

@@ -69,3 +69,21 @@ def write(root: str, rel: str, text: str) -> str:
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(text)
     return path
+
+
+@pytest.fixture(autouse=True)
+def _close_test_stores(request, monkeypatch):
+    """Own fixture-created SQLite handles until teardown, including on failed assertions.
+
+    Many oracle tests construct a Context directly instead of a Session context manager.
+    Register explicit finalizers so Python 3.13 and Windows release their handles too.
+    """
+    from weftgate.store import Store
+
+    initialize = Store.__init__
+
+    def initialize_with_cleanup(self, *args, **kwargs):
+        initialize(self, *args, **kwargs)
+        request.addfinalizer(self.close)
+
+    monkeypatch.setattr(Store, "__init__", initialize_with_cleanup)

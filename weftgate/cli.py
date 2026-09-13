@@ -74,11 +74,17 @@ def render_github(result: GateResult) -> str:
         if f.level is Level.ACCEPT:
             continue
         loc = f.claim.location
-        where = f"file={loc.file}" + (f",line={loc.line}" if loc.line else "")
+        where = f"file={_gh_property(loc.file)}" + (f",line={loc.line}" if loc.line else "")
         msg = f.reason + (f" (did you mean {', '.join(f.suggestions)}?)" if f.suggestions else "")
-        out.append(f"::{kinds[f.level]} {where},title=weftgate {f.oracle}::{_gh_escape(msg)}")
+        out.append(
+            f"::{kinds[f.level]} {where},title=weftgate {_gh_property(f.oracle)}::{_gh_escape(msg)}"
+        )
     out.append(f"verdict: {result.verdict.value}")
     return "\n".join(out)
+
+
+def _gh_property(text: str) -> str:
+    return _gh_escape(text).replace(":", "%3A").replace(",", "%2C")
 
 
 def _gh_escape(text: str) -> str:
@@ -438,7 +444,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
     else:
         print(mutate.render_text(report))
-    return 0 if report.total == 0 or report.blocked == report.total else 1
+    return 0 if report.misses == 0 else 1
 
 
 def cmd_setup(args: argparse.Namespace) -> int:

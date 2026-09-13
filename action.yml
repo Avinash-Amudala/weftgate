@@ -14,7 +14,7 @@ inputs:
     required: false
     default: ""
   paths:
-    description: "Space-separated paths to limit an audit to"
+    description: "Shell-quoted paths to limit an audit to (no shell expansion)"
     required: false
     default: ""
   block-on:
@@ -37,31 +37,15 @@ runs:
         python-version: ${{ inputs.python-version }}
     - name: Install weftgate
       shell: bash
-      run: |
-        set -euo pipefail
-        if [ -n "${{ inputs.weftgate-ref }}" ]; then
-          pip install -q "git+https://github.com/${{ github.action_repository || 'Avinash-Amudala/weftgate' }}@${{ inputs.weftgate-ref }}"
-        else
-          pip install -q "${{ github.action_path }}"
-        fi
-        weftgate --version
+      env:
+        INPUT_REF: ${{ inputs.weftgate-ref }}
+      run: python "$GITHUB_ACTION_PATH/scripts/action_runner.py" install
     - name: Run weftgate
       shell: bash
       env:
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_BASE: ${{ inputs.base }}
+        INPUT_PATHS: ${{ inputs.paths }}
+        PR_BASE: ${{ github.base_ref }}
         WEFTGATE_BLOCK_ON: ${{ inputs.block-on }}
-      run: |
-        set -euo pipefail
-        if [ "${{ inputs.mode }}" = "audit" ]; then
-          weftgate audit --format=github ${{ inputs.paths }}
-          exit $?
-        fi
-        base="${{ inputs.base }}"
-        if [ -z "$base" ] && [ -n "${{ github.base_ref }}" ]; then
-          base="origin/${{ github.base_ref }}"
-          git fetch -q --depth=1 origin "${{ github.base_ref }}" || true
-        fi
-        if [ -z "$base" ]; then
-          base="HEAD~1"
-        fi
-        echo "weftgate: checking diff $base...HEAD"
-        git diff --no-color --no-ext-diff --no-renames -U0 "$base...HEAD" | weftgate check - --format=github
+      run: python "$GITHUB_ACTION_PATH/scripts/action_runner.py"

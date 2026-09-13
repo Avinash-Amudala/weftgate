@@ -94,7 +94,22 @@ def run(
         plan.append(("keep", os.path.relpath(existing, repo_root), "existing config kept"))
 
     if hooks and os.path.isdir(os.path.join(repo_root, ".git")):
-        plan.append(("write", ".git/hooks/pre-commit", PRE_COMMIT))
+        hook_path = os.path.join(repo_root, ".git/hooks/pre-commit")
+        if os.path.isfile(hook_path):
+            with open(hook_path, encoding="utf-8") as hook:
+                current = hook.read()
+            if current != PRE_COMMIT:
+                plan.append(
+                    (
+                        "keep",
+                        ".git/hooks/pre-commit",
+                        "existing hook preserved; add `weftgate check --staged` to it",
+                    )
+                )
+            else:
+                plan.append(("keep", ".git/hooks/pre-commit", "weftgate hook already installed"))
+        else:
+            plan.append(("write", ".git/hooks/pre-commit", PRE_COMMIT))
     if "claude" in wanted and hooks:
         settings_path = os.path.join(repo_root, ".claude", "settings.json")
         merged, changed = merge_claude_settings(_read_json(settings_path))
@@ -165,12 +180,11 @@ def find_fastapi_app(repo_root: str) -> str | None:
     """``module:var`` of the first ``var = FastAPI(...)`` found (main/app files first)."""
     from .oracle import module_of_file
 
-    store = Store(repo_root, path=os.path.join(_scratch(), "setup-scan.sqlite"))
+    store = Store(repo_root, path=":memory:")
     try:
         files = [f for f in store.all_files() if f.endswith(".py")]
     finally:
         store.close()
-        _cleanup(os.path.join(_scratch(), "setup-scan.sqlite"))
     files.sort(key=lambda f: (0 if os.path.basename(f) in ("main.py", "app.py") else 1, f))
     pattern = re.compile(r"^\s*(\w+)\s*(?::\s*\w+\s*)?=\s*FastAPI\(", re.M)
     for rel in files:
@@ -216,23 +230,13 @@ def _read_json(path: str) -> dict[str, Any]:
     try:
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
-    except (OSError, ValueError):
+    except FileNotFoundError:
         return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _scratch() -> str:
-    import tempfile
-
-    return tempfile.gettempdir()
-
-
-def _cleanup(path: str) -> None:
-    for suffix in ("", "-wal", "-shm"):
-        try:
-            os.remove(path + suffix)
-        except OSError:
-            pass
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"cannot safely merge {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"cannot safely merge {path}: expected a JSON object")
+    return data
 
 
 def _render_setup(summary: dict[str, Any], plan: list[tuple[str, str, str]]) -> str:

@@ -1,0 +1,364 @@
+{
+  "source": "Built-in fixture; illustrative demonstration, not a field benchmark.",
+  "broken": {
+    "exit_code": 1,
+    "result": {
+      "findings": [
+        {
+          "attrs": {
+            "lang": "python",
+            "top": "os"
+          },
+          "col": 1,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "import",
+          "level": "accept",
+          "line": 1,
+          "oracle": "imports_lockfile",
+          "reason": "standard library",
+          "source": "code",
+          "subject": "os",
+          "suggestions": []
+        },
+        {
+          "attrs": {
+            "lang": "python",
+            "top": "requestz"
+          },
+          "col": 1,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "import",
+          "level": "reject",
+          "line": 3,
+          "oracle": "imports_lockfile",
+          "reason": "import 'requestz' is not in requirements.txt or the standard library (slopsquat risk)",
+          "source": "code",
+          "subject": "requestz",
+          "suggestions": [
+            "requests"
+          ]
+        },
+        {
+          "attrs": {
+            "lang": "python",
+            "top": "app"
+          },
+          "col": 1,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "import",
+          "level": "accept",
+          "line": 5,
+          "oracle": "imports_lockfile",
+          "reason": "the repo's own package",
+          "source": "code",
+          "subject": "app.handlers",
+          "suggestions": []
+        },
+        {
+          "attrs": {
+            "lang": "python",
+            "top": "app"
+          },
+          "col": 1,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "import",
+          "level": "accept",
+          "line": 6,
+          "oracle": "imports_lockfile",
+          "reason": "the repo's own package",
+          "source": "code",
+          "subject": "app.main",
+          "suggestions": []
+        },
+        {
+          "attrs": {},
+          "col": 10,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "env_var",
+          "level": "reject",
+          "line": 8,
+          "oracle": "env_vars",
+          "reason": "env var 'DATABSE_URL' is read but declared nowhere (add it to .env.example)",
+          "source": "code",
+          "subject": "DATABSE_URL",
+          "suggestions": [
+            "DATABASE_URL"
+          ]
+        },
+        {
+          "attrs": {
+            "handler": "helth",
+            "handler_kind": "name",
+            "router": "app",
+            "style": "add_api_route",
+            "symbols": {
+              "SECRET": [
+                "assign",
+                ""
+              ],
+              "app": [
+                "import",
+                "app.main:app"
+              ],
+              "health": [
+                "import",
+                "app.handlers:health"
+              ],
+              "os": [
+                "import",
+                "os"
+              ],
+              "requestz": [
+                "import",
+                "requestz"
+              ]
+            }
+          },
+          "col": 0,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "route_handler",
+          "level": "reject",
+          "line": 10,
+          "oracle": "routes_fastapi",
+          "reason": "handler 'helth' is not defined or imported in app/broken.py",
+          "source": "code",
+          "subject": "GET /late",
+          "suggestions": [
+            "health"
+          ]
+        }
+      ],
+      "stats": {
+        "accept": 3,
+        "block_on": "reject",
+        "blocking": true,
+        "claims": 6,
+        "files": [
+          "app/broken.py"
+        ],
+        "mode": "diff",
+        "oracles": [
+          "env_vars",
+          "imports_lockfile",
+          "routes_fastapi"
+        ],
+        "reject": 3,
+        "review": 0,
+        "unverifiable": 0
+      },
+      "verdict": "reject"
+    }
+  },
+  "fixed": {
+    "exit_code": 0,
+    "result": {
+      "findings": [
+        {
+          "attrs": {
+            "lang": "python",
+            "top": "os"
+          },
+          "col": 1,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "import",
+          "level": "accept",
+          "line": 1,
+          "oracle": "imports_lockfile",
+          "reason": "standard library",
+          "source": "code",
+          "subject": "os",
+          "suggestions": []
+        },
+        {
+          "attrs": {
+            "lang": "python",
+            "top": "requests"
+          },
+          "col": 1,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "import",
+          "level": "accept",
+          "line": 3,
+          "oracle": "imports_lockfile",
+          "reason": "in requirements.txt as requests",
+          "source": "code",
+          "subject": "requests",
+          "suggestions": []
+        },
+        {
+          "attrs": {
+            "lang": "python",
+            "top": "app"
+          },
+          "col": 1,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "import",
+          "level": "accept",
+          "line": 5,
+          "oracle": "imports_lockfile",
+          "reason": "the repo's own package",
+          "source": "code",
+          "subject": "app.handlers",
+          "suggestions": []
+        },
+        {
+          "attrs": {
+            "lang": "python",
+            "top": "app"
+          },
+          "col": 1,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "import",
+          "level": "accept",
+          "line": 6,
+          "oracle": "imports_lockfile",
+          "reason": "the repo's own package",
+          "source": "code",
+          "subject": "app.main",
+          "suggestions": []
+        },
+        {
+          "attrs": {},
+          "col": 10,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "env_var",
+          "level": "accept",
+          "line": 8,
+          "oracle": "env_vars",
+          "reason": "declared in .env.example",
+          "source": "code",
+          "subject": "DATABASE_URL",
+          "suggestions": []
+        },
+        {
+          "attrs": {
+            "handler": "health",
+            "handler_kind": "name",
+            "router": "app",
+            "style": "add_api_route",
+            "symbols": {
+              "SECRET": [
+                "assign",
+                ""
+              ],
+              "app": [
+                "import",
+                "app.main:app"
+              ],
+              "health": [
+                "import",
+                "app.handlers:health"
+              ],
+              "os": [
+                "import",
+                "os"
+              ],
+              "requests": [
+                "import",
+                "requests"
+              ]
+            }
+          },
+          "col": 0,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "route_handler",
+          "level": "accept",
+          "line": 10,
+          "oracle": "routes_fastapi",
+          "reason": "handler 'health' resolves to app/handlers.py",
+          "source": "code",
+          "subject": "GET /late",
+          "suggestions": []
+        }
+      ],
+      "stats": {
+        "accept": 6,
+        "block_on": "reject",
+        "blocking": false,
+        "claims": 6,
+        "files": [
+          "app/broken.py"
+        ],
+        "mode": "diff",
+        "oracles": [
+          "env_vars",
+          "imports_lockfile",
+          "routes_fastapi"
+        ],
+        "reject": 0,
+        "review": 0,
+        "unverifiable": 0
+      },
+      "verdict": "accept"
+    }
+  },
+  "dynamic": {
+    "exit_code": 0,
+    "result": {
+      "findings": [
+        {
+          "attrs": {
+            "lang": "python",
+            "top": "os"
+          },
+          "col": 1,
+          "file": "app/broken.py",
+          "hard": true,
+          "kind": "import",
+          "level": "accept",
+          "line": 1,
+          "oracle": "imports_lockfile",
+          "reason": "standard library",
+          "source": "code",
+          "subject": "os",
+          "suggestions": []
+        },
+        {
+          "attrs": {},
+          "col": 9,
+          "file": "app/broken.py",
+          "hard": false,
+          "kind": "env_var",
+          "level": "review",
+          "line": 3,
+          "oracle": "env_vars",
+          "reason": "env read with a non-literal key; cannot resolve the name",
+          "source": "code",
+          "subject": "<dynamic>",
+          "suggestions": []
+        }
+      ],
+      "stats": {
+        "accept": 1,
+        "block_on": "reject",
+        "blocking": false,
+        "claims": 2,
+        "files": [
+          "app/broken.py"
+        ],
+        "mode": "diff",
+        "oracles": [
+          "env_vars",
+          "imports_lockfile",
+          "routes_fastapi"
+        ],
+        "reject": 0,
+        "review": 1,
+        "unverifiable": 0
+      },
+      "verdict": "review"
+    }
+  }
+}

@@ -19,14 +19,16 @@ stable calls plus a plugin entry point.
    can change (files, env declarations, resolved routes, provided packages, and the
    symbols of the files about to be re-scanned), diffs them after the oracles sync, and
    appends the difference to a `changes` table with a monotonically increasing `seq`.
-   `weftgate memory changes --since N` returns what changed after `N`.
+   `weftgate memory changes --since N` returns what changed after `N`. Its `seq`
+   cursor covers only the returned page; continue while `has_more` is true.
 3. **Self-invalidation.** mnemo remembers the last `seq` it consumed. Before a recall
    (throttled) and on `store.py invalidate`, it asks for the changes since then and
    marks memories anchored on any of those nodes `stale`. Cost is proportional to the
    number of changes, not the number of memories.
 4. **Re-verification.** `store.py reverify` sends stale anchors back through
-   `weftgate memory check`. If every node still resolves the memory returns to `valid`
-   (with refreshed hashes); if a node is gone it becomes `invalid`. Stale and invalid
+   `weftgate memory check`. The memory returns to `valid` only when its original evidence matches.
+   Changed content stays `stale`; if a node is gone it becomes `invalid`. Re-checks
+   retain the original hashes and do not prove that remembered prose is still true. Stale and invalid
    memories are down-ranked and flagged in recall, never silently served.
 5. **The gate at write time.** `weftgate.memory.register(api)` is a mnemo verification
    plugin. With `"oracles": ["weftgate.memory"]` in `.mnemo.json`, a memory that claims

@@ -4,6 +4,8 @@ verdict ladder (stdlib, local, alias, installed-but-unlocked, no lockfile)."""
 import json
 import os
 
+import pytest
+
 from tests.conftest import write
 from weftgate.change import Change
 from weftgate.config import Config
@@ -239,7 +241,8 @@ def test_lockfile_parsers(tmp_path):
         'lodash@^4.17.21:\n  version "4.17.21"\n\n"react@npm:^18.0.0":\n  version "18"\n'
     )
     assert _parse_manifest("yarn.lock", yarn, ctx, "y")[0] == {"@babel/core", "lodash", "react"}
-    assert _parse_manifest("package.json", "{not json", ctx, "package.json") == (set(), set())
+    with pytest.raises(ValueError, match="cannot parse"):
+        _parse_manifest("package.json", "{not json", ctx, "package.json")
     assert norm("Foo-Bar.baz") == "foo_bar_baz"
     ctx.store.close()
 

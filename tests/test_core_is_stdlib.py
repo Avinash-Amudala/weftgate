@@ -24,6 +24,11 @@ CORE = (
     "memory",
     "ledger",
     "doctor",
+    "oracles.env_vars",
+    "oracles.imports_lockfile",
+    "oracles.routes_fastapi",
+    "eval.audit",
+    "eval.mutate",
 )
 
 

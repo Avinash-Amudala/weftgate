@@ -17,7 +17,7 @@ import traceback
 from typing import Any
 
 from . import honesty
-from .change import Change
+from .change import Change, Region
 from .config import Config
 from .oracle import Context, Oracle
 from .registry import load_oracles
@@ -40,8 +40,8 @@ class Session:
     ) -> None:
         self.repo_root = repo_root
         self.config = config or Config.load(repo_root)
-        self.store = store or Store(repo_root, path=store_path, ignored_dirs=self.config.exclude)
         self.oracles = oracles if oracles is not None else load_oracles(self.config)
+        self.store = store or Store(repo_root, path=store_path, ignored_dirs=self.config.exclude)
         self.ctx = Context(
             repo_root=self.store.repo_root,
             store=self.store,
@@ -70,10 +70,22 @@ class Session:
         self.store.forget_sync_cache()
         report: dict[str, dict[str, Any]] = {}
         # Snapshot the nodes a sync can change, so the difference can be recorded for
-        # consumers that ground memories on them (see weftgate.memory). A first build or a
-        # forced rebuild has no "before": nothing was grounded on it yet.
-        first_build = any(not self.store.is_built(name) for name in self.oracles)
-        before = None if (force_rebuild or first_build) else graph_snapshot(self, None)
+        # consumers that ground memories on them (see weftgate.memory). Only a first
+        # build has no prior graph; forced rebuilds must still invalidate memories.
+        first_build = self.store.get_meta("build_commit") is None
+        before = None if first_build else graph_snapshot(self, None)
+        config_key = json.dumps(
+            {
+                "env_declared_in": self.config.env_declared_in,
+                "exclude": self.config.exclude,
+                "per_oracle": self.config.per_oracle,
+            },
+            sort_keys=True,
+        )
+        config_changed = self.store.get_meta("index_config") != config_key
+        self.store.ignored = self.config.ignored_dirs()
+        if config_changed and not first_build:
+            force_rebuild = True
         for name, oracle in self.oracles.items():
             version = str(getattr(oracle, "version", "1"))
             fresh = (
@@ -88,9 +100,10 @@ class Session:
                 else:
                     since = self.store.oracle_commit(name)
                     sync = getattr(oracle, "sync", None)
-                    if sync is not None:
-                        sync(self.ctx, since)
-                    self.store.mark_built(name, commit, version)
+                    with self.store.transaction():
+                        if sync is not None:
+                            sync(self.ctx, since)
+                        self.store.mark_built(name, commit, version)
             except Exception as first:  # noqa: BLE001 - indexing must never break the gate
                 # One retry as a full rebuild; if that fails too, the oracle is unbuilt
                 # and will answer UNVERIFIABLE (never REJECT) until the cause is fixed.
@@ -101,6 +114,8 @@ class Session:
                     self._unbuild(name)
                     action = "failed"
                     self.sync_errors[name] = _short(second or first)
+            if action != "failed":
+                self.sync_errors.pop(name, None)
             report[name] = {"action": action, **self.store.oracle_status(name)}
         if before is not None:
             changed_files = before.get("changed_files", [])
@@ -109,6 +124,7 @@ class Session:
             self.store.record_changes(commit, self.last_changes)
         else:
             self.last_changes = []
+        self.store.set_meta("index_config", config_key)
         self.store.finish_sync(commit)
         self.ctx.git_commit = commit
         self._synced = True
@@ -116,19 +132,20 @@ class Session:
 
     def _build(self, oracle: Oracle, name: str, commit: str | None, version: str) -> None:
         build = getattr(oracle, "build", None)
-        if build is not None:
-            build(self.ctx)
-        self.store.mark_built(name, commit, version)
+        with self.store.transaction():
+            if build is not None:
+                build(self.ctx)
+            self.store.mark_built(name, commit, version)
 
     def _unbuild(self, name: str) -> None:
         try:
             self.store.mark_unbuilt(name)
-            self.store.namespace(name).drop_all()
+            # Keep the last committed tables for recovery; never check them as fresh.
         except Exception:  # noqa: BLE001 - best effort
             pass
 
     def _ensure_synced(self, sync: bool) -> None:
-        if sync and not self._synced:
+        if sync:
             self.sync()
 
     # --- diff mode ----------------------------------------------------------------------
@@ -136,6 +153,22 @@ class Session:
     def check_change(self, change: Change, sync: bool = True) -> GateResult:
         self._ensure_synced(sync)
         change = change.relative_to(self.repo_root)
+        # A diff fragment can be inside a docstring or optional-import guard.
+        # Use the whole file only when its added lines match the proposed content.
+        partial = {
+            r.file: {line for line, _ in r.lines()} for r in change.regions if not r.whole_file
+        }
+        regions: list[Region] = []
+        for region in change.regions:
+            text = self.ctx.read_text(region.file) if not region.whole_file else None
+            lines = text.splitlines() if text is not None else []
+            if text is not None and all(
+                0 < n <= len(lines) and lines[n - 1] == t for n, t in region.lines()
+            ):
+                regions.append(Region(region.file, region.lines(), text))
+            else:
+                regions.append(region)
+        change = Change(regions)
         findings: list[Finding] = []
         for name, oracle in self.oracles.items():
             try:
@@ -144,6 +177,11 @@ class Session:
                 findings.append(_crash_finding(name, change.files(), "extract", exc))
                 continue
             for claim in claims:
+                if (
+                    claim.location.file in partial
+                    and claim.location.line not in partial[claim.location.file]
+                ):
+                    continue
                 findings.append(self._check_one(oracle, name, claim))
         return self._result(findings, {"files": change.files(), "mode": "diff"})
 
@@ -215,6 +253,13 @@ class Session:
     # --- internals ----------------------------------------------------------------------
 
     def _check_one(self, oracle: Oracle, name: str, claim: Claim) -> Finding:
+        if name in self.sync_errors:
+            return Finding(
+                claim,
+                Level.UNVERIFIABLE,
+                f"oracle {name!r} index unavailable: {self.sync_errors[name]}",
+                name,
+            )
         try:
             return oracle.check(claim, self.ctx)
         except Exception as exc:  # noqa: BLE001
@@ -261,16 +306,23 @@ def graph_snapshot(session: Session, changed_files: list[str] | None) -> dict[st
         "routes": set(),
         "dists": set(),
         "symbols": set(),
+        "affected": set(),
     }
     env = store.namespace("env_vars")
     if env.exists("decl"):
         snap["env"] = {f"env:{r[0]}" for r in env.query("SELECT DISTINCT name FROM {t:decl}")}
+        for name, file in env.query("SELECT name, file FROM {t:decl}"):
+            if file in changed_files:
+                snap["affected"].add(f"env:{name}")
     imports = store.namespace("imports_lockfile")
     if imports.exists("provided"):
         snap["dists"] = {
             f"dist:{r[0]}:{r[1]}"
             for r in imports.query("SELECT DISTINCT lang, dist FROM {t:provided}")
         }
+        for lang, dist, source in imports.query("SELECT lang, dist, source FROM {t:provided}"):
+            if source in changed_files:
+                snap["affected"].add(f"dist:{lang}:{dist}")
     routes = store.namespace("routes_fastapi")
     if routes.exists("routes"):
         oracle = session.oracles.get("routes_fastapi")
@@ -282,6 +334,8 @@ def graph_snapshot(session: Session, changed_files: list[str] | None) -> dict[st
                 }
             except Exception:  # noqa: BLE001
                 snap["routes"] = set()
+        if any(file.endswith(".py") for file in changed_files):
+            snap["affected"].update(snap["routes"])
         if changed_files:
             marks = ",".join("?" * len(changed_files))
             snap["symbols"] = {
@@ -301,6 +355,13 @@ def diff_snapshots(before: dict[str, Any], after: dict[str, Any]) -> list[tuple[
         b, a = before.get(key, set()), after.get(key, set())
         out.extend((node, "removed") for node in b - a)
         out.extend((node, "added") for node in a - b)
+        if key == "symbols":
+            # These symbols belong to changed files; existence alone cannot show
+            # that their implementation still matches a stored memory.
+            out.extend((node, "changed") for node in a & b)
+    classified = {node for node, _op in out}
+    affected = before.get("affected", set()) | after.get("affected", set())
+    out.extend((node, "changed") for node in affected - classified)
     return sorted(set(out))
 
 
@@ -389,6 +450,18 @@ def _claim_from_dict(raw: dict[str, Any], index: int) -> Claim:
     kind = _KIND_ALIASES.get(kind, kind)
     if not kind:
         raise ValueError(f"claim #{index}: missing 'kind'")
+    if raw.get("attrs") is not None and not isinstance(raw["attrs"], dict):
+        raise ValueError(f"claim #{index}: 'attrs' must be an object")
+    if "hard" in raw and not isinstance(raw["hard"], bool):
+        raise ValueError(f"claim #{index}: 'hard' must be a boolean")
+    if raw.get("source", "assertion") not in ("code", "assertion", "prose"):
+        raise ValueError(f"claim #{index}: unknown 'source'")
+    for coordinate in ("line", "col"):
+        value = raw.get(coordinate, 0)
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+        ):
+            raise ValueError(f"claim #{index}: '{coordinate}' must be a nonnegative integer")
     attrs: dict[str, Any] = dict(raw.get("attrs") or {})
     subject = raw.get("subject")
     if kind == "route_handler" and not subject:

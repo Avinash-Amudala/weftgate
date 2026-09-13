@@ -1,0 +1,12 @@
+{
+  "product": "weftgate",
+  "oracles": [
+    "weftgate.memory"
+  ],
+  "embed": {
+    "backend": "none"
+  },
+  "hub": {
+    "url": null
+  }
+}

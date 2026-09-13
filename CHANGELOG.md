@@ -5,7 +5,7 @@ All notable changes to weftgate are recorded here. The format follows
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-09-12 (unreleased until the v0.1.0 tag)
+## [0.1.0] - 2026-09-12
 
 The verification gate.
 
@@ -35,6 +35,20 @@ The verification gate.
   correctly suggested separately; an audit sweep; an offline self-test; field
   results on six open-source repositories.
 - An oracle-authoring guide and a scaffold script.
+
+### Release hardening
+- Refresh reused sessions, detect worktree reverts, preserve indexes on failed rebuilds,
+  and isolate nested transactions with savepoints.
+- Review incomplete dependency metadata and dynamic route evidence; never use installed
+  dependency percentages as proof of absence.
+- Preserve original memory hashes, invalidate changed symbols and declarations, and
+  return a safe pagination cursor for the changed-node ledger.
+- Validate structured claims, escape GitHub annotation properties, count nested JUnit
+  failures, and prevent opt-in URL probes from following redirects.
+- Preserve existing hooks and refuse malformed agent configuration.
+- Pass Action inputs as process arguments; gate trusted PyPI publishing on the full CI
+  matrix and extract release notes without dropping their final line.
+- Add a reproducible captioned demo, release documentation, and an organic launch plan.
 
 ### Verdict rules worth knowing
 - A verdict blocks only on a positive, machine-checkable falsehood. A missing index,

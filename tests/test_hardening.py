@@ -235,15 +235,14 @@ def test_manifest_only_absence_reviews_lockfile_absence_rejects(tmp_path):
     )
 
 
-def test_manifest_only_rejects_when_the_environment_matches_the_project(tmp_path):
-    # These distributions are all installed in the test environment, so weftgate can tell
-    # the running interpreter *is* the project's: an import installed nowhere is proven.
+def test_manifest_only_reviews_even_when_environment_matches_project(tmp_path):
+    # Installed tools do not prove that all transitive dependencies are installed.
     root = str(tmp_path / "repo")
     write(root, "pyproject.toml", '[project]\ndependencies = ["pytest", "ruff", "mypy", "build"]\n')
     res = _run(root, ImportsLockfileOracle(), "m.py", "import pytest\nimport ghostpkg_zz\n")
     assert res["pytest"].level is Level.ACCEPT
-    assert res["ghostpkg_zz"].level is Level.REJECT
-    assert "not installed in this environment" in res["ghostpkg_zz"].reason
+    assert res["ghostpkg_zz"].level is Level.REVIEW
+    assert "transitive" in res["ghostpkg_zz"].reason
 
 
 def test_node_manifest_only_and_framework_aliases(tmp_path):
@@ -379,10 +378,8 @@ def test_harness_handles_multi_line_calls_and_node_candidates(tmp_path):
     assert any(m["file"] == "server.js" for m in report.mutations)
 
 
-def test_coverage_uses_the_projects_mandatory_deps_only(tmp_path):
-    # Mandatory deps are all installed here (they are weftgate's own dev tools); the optional
-    # and dev groups name packages that are not. Coverage must ignore the latter, so the
-    # environment still counts as the project's own and a phantom import is proven absent.
+def test_optional_groups_do_not_establish_dependency_completeness(tmp_path):
+    # Neither mandatory nor optional installed dependencies establish a complete tree.
     root = str(tmp_path / "repo")
     write(
         root,
@@ -397,7 +394,7 @@ def test_coverage_uses_the_projects_mandatory_deps_only(tmp_path):
     write(root, "examples/demo/requirements.txt", "zz-not-installed-g\nzz-not-installed-h\n")
     res = _run(root, ImportsLockfileOracle(), "pkg/m.py", "import ghostpkg_zz\nimport pytest\n")
     assert res["pytest"].level is Level.ACCEPT
-    assert res["ghostpkg_zz"].level is Level.REJECT, res["ghostpkg_zz"].reason
+    assert res["ghostpkg_zz"].level is Level.REVIEW, res["ghostpkg_zz"].reason
     # Inside the example app the nearest manifest is the unmet one: not proven there.
     res = _run(root, ImportsLockfileOracle(), "examples/demo/app.py", "import ghostpkg_zz\n")
     assert res["ghostpkg_zz"].level is Level.REVIEW

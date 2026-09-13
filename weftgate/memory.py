@@ -26,12 +26,11 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import time
 from collections.abc import Callable, Iterable
 from typing import Any
 
 from .gate import Session
-from .types import Claim, Level, Location
+from .types import Claim, Finding, Level, Location
 
 ANCHOR_KINDS = ("file", "env", "route", "import", "symbol")
 _ENV_NAME = re.compile(r"\b([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)\b")
@@ -69,12 +68,11 @@ def anchor(
     prose = _extract_prose(text)
     anchors: list[dict[str, Any]] = []
     commit = session.ctx.git_commit
-    now = int(time.time())
     for kind in ANCHOR_KINDS:
         for value in sorted(wanted[kind]):
-            anchors.append(_make_anchor(session, kind, value, commit, now, declared=True))
+            anchors.append(_make_anchor(session, kind, value, commit, declared=True))
         for value in sorted(prose.get(kind, set()) - wanted[kind]):
-            a = _make_anchor(session, kind, value, commit, now, declared=False)
+            a = _make_anchor(session, kind, value, commit, declared=False)
             if a["state"] == "valid":
                 anchors.append(a)
     return {
@@ -88,20 +86,17 @@ def anchor(
 def check(session: Session, anchors: Iterable[dict[str, Any]], sync: bool = True) -> dict[str, Any]:
     """Re-derive every anchor's state now. ``summary`` is the memory's overall
     state: invalid if any anchor is invalid, else stale if any is stale, else
-    valid (unverifiable anchors do not count against it)."""
+    valid. Unverifiable anchors keep the memory stale for review."""
     if sync:
         session.sync()
     commit = session.ctx.git_commit
-    now = int(time.time())
     out: list[dict[str, Any]] = []
     for a in anchors:
         kind, value = str(a.get("kind", "")), str(a.get("locator", ""))
         if kind not in ANCHOR_KINDS or not value:
-            out.append(
-                {**a, "state": "unverifiable", "reason": "malformed anchor", "checked_at": now}
-            )
+            out.append({**a, "state": "unverifiable", "reason": "malformed anchor"})
             continue
-        fresh = _make_anchor(session, kind, value, commit, now, declared=True)
+        fresh = _make_anchor(session, kind, value, commit, declared=True)
         state = fresh["state"]
         if (
             state == "valid"
@@ -111,9 +106,25 @@ def check(session: Session, anchors: Iterable[dict[str, Any]], sync: bool = True
         ):
             state = "stale"
             fresh["reason"] = "content changed since the memory was grounded"
-        out.append({**a, **fresh, "state": state, "checked_at": now})
+        # Checking is observation, not permission to replace the grounding evidence.
+        # Retain the original hash so repeated checks cannot silently validate stale prose.
+        out.append(
+            {
+                **a,
+                **fresh,
+                "state": state,
+                "content_hash": a.get("content_hash"),
+                "commit": a.get("commit"),
+                "observed_hash": fresh.get("content_hash"),
+                "observed_commit": commit,
+            }
+        )
     states = [a["state"] for a in out]
-    summary = "invalid" if "invalid" in states else ("stale" if "stale" in states else "valid")
+    summary = (
+        "invalid"
+        if "invalid" in states
+        else ("stale" if any(state != "valid" for state in states) else "valid")
+    )
     return {"commit": commit, "seq": session.store.head_seq(), "summary": summary, "anchors": out}
 
 
@@ -127,26 +138,29 @@ def changes(session: Session, since: int = 0, sync: bool = True) -> dict[str, An
         nodes[node] = op
     return {
         "since": since,
-        "seq": session.store.head_seq(),
+        "seq": rows[-1][0] if rows else since,
+        "head_seq": session.store.head_seq(),
+        "has_more": bool(rows and rows[-1][0] < session.store.head_seq()),
         "commit": session.ctx.git_commit,
         "changes": [{"node": n, "op": op} for n, op in sorted(nodes.items())],
     }
 
 
 def _make_anchor(
-    session: Session, kind: str, value: str, commit: str | None, now: int, declared: bool
+    session: Session, kind: str, value: str, commit: str | None, declared: bool
 ) -> dict[str, Any]:
     base: dict[str, Any] = {
         "kind": kind,
         "locator": value,
         "oracle": "weftgate",
         "commit": commit,
-        "checked_at": now,
         "declared": declared,
     }
     match kind:
         case "file":
-            rel = value.replace(os.sep, "/").lstrip("./")
+            rel = value.replace(os.sep, "/")
+            while rel.startswith("./"):
+                rel = rel[2:]
             full = os.path.join(session.store.repo_root, rel)
             if os.path.isabs(value) or ".." in rel.split("/"):
                 return {
@@ -232,7 +246,9 @@ def _make_anchor(
             }
 
 
-def _check_via(session: Session, kind: str, subject: str, attrs: dict[str, Any] | None = None):  # type: ignore[no-untyped-def]
+def _check_via(
+    session: Session, kind: str, subject: str, attrs: dict[str, Any] | None = None
+) -> Finding:
     claim = Claim(kind, subject, Location(""), dict(attrs or {}), True, "assertion")
     result = session.check_claims([claim], sync=False)
     return result.findings[0]

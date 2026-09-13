@@ -21,6 +21,7 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
+demo = ["Pillow>=10.0", "imageio-ffmpeg>=0.5"]
 # Optional accelerators. Each must degrade to UNVERIFIABLE when absent. In v0.1 the core
 # uses none of them: treesitter, lsp, and yaml are reserved for the Tier 1 oracles of
 # v0.2, and mcp is used only by the test-suite to drive the stdlib stdio server with the
@@ -59,6 +60,7 @@ path = "weftgate/__init__.py"
 packages = ["weftgate"]
 
 [tool.hatch.build.targets.sdist]
+exclude = ["docs/assets/*.mp4", "docs/assets/*.gif"]
 include = ["weftgate/", "tests/", "docs/", "scripts/", "README.md", "CHANGELOG.md", "LICENSE",
            "NOTICE", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md", "weftgate.toml",
            ".env.example", "action.yml", ".pre-commit-hooks.yaml"]

@@ -3,8 +3,7 @@
 ## Reporting
 
 Report vulnerabilities privately through GitHub's "Report a vulnerability" form on
-this repository (Security tab), or by email to the maintainer listed in
-`pyproject.toml`. Please do not open a public issue for a security problem. You will
+this repository: [report a vulnerability](https://github.com/Avinash-Amudala/weftgate/security/advisories/new). Please do not open a public issue for a security problem. You will
 get an acknowledgement within a few days and a fix or a mitigation plan as soon as
 the report is confirmed.
 
@@ -23,7 +22,7 @@ Two features run things, and only when the caller opts in:
   `allow_hosts` extends the list. Nothing in a file, diff, or comment can trigger
   a run: the flag comes from the caller, not from observed content.
 - **Hooks** (`weftgate hook claude`, the git pre-commit hook) run the gate on the content
-  being written. They exit non-zero only on a `reject` verdict and exit 0 on any
+  being written. With the default policy they block only on a `reject` verdict and exit 0 on an
   internal error, so a broken hook never blocks work.
 
 The optional extras (`weftgate[mcp]`, `weftgate[yaml]`, `weftgate[treesitter]`, `weftgate[lsp]`)

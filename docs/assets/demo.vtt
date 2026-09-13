@@ -1,19 +1,28 @@
 WEBVTT
 
-00:00:00.000 --> 00:00:07.000
-Looks right. Doesn’t connect. Verify env, import, and route references.
+00:00:00.000 --> 00:00:05.000
+The code looks right. But does it connect?
 
-00:00:07.000 --> 00:00:14.000
-Three mistakes: requestz, DATABSE_URL, and the helth handler.
+00:00:05.000 --> 00:00:11.000
+Weftgate checks environment variables, imports, and FastAPI route references.
 
-00:00:14.000 --> 00:00:27.000
-Weftgate rejects all three and suggests requests, DATABASE_URL, and health.
+00:00:11.000 --> 00:00:16.000
+Run weftgate check app/broken.py. Trace each reference to repository evidence.
 
-00:00:27.000 --> 00:00:36.000
-Correct the references. Run the same check. ACCEPT, exit code 0.
+00:00:16.000 --> 00:00:24.000
+Three broken references. Suggestions: requests, DATABASE_URL, and health.
 
-00:00:36.000 --> 00:00:44.000
-A dynamic environment key returns REVIEW, exit code 0.
+00:00:24.000 --> 00:00:30.000
+Apply the suggested names and run the same check.
 
-00:00:44.000 --> 00:00:52.000
-Install weftgate and audit your repository. CLI, MCP, GitHub Action, and hooks.
+00:00:30.000 --> 00:00:33.000
+The corrected fixture returns ACCEPT, with exit code zero.
+
+00:00:33.000 --> 00:00:41.000
+A dynamic environment key returns REVIEW. Uncertainty does not block.
+
+00:00:41.000 --> 00:00:48.000
+One verification engine for CLI, MCP, GitHub Action, and hooks.
+
+00:00:48.000 --> 00:00:58.000
+pip install weftgate. Run weftgate audit. Try it and share a reproduction.

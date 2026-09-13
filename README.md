@@ -13,9 +13,9 @@ your repository through one local CLI, MCP server, hook, or GitHub Action.
 
 **No API key. No runtime dependencies. No network calls on the default verification path.**
 
-[![Watch the 52-second demo](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/demo.gif)](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.1.0/weftgate-demo.mp4)
+[![Watch the 58-second motion demo](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/demo.gif)](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.1.1/weftgate-demo-motion.mp4)
 
-[Watch the full demo](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.1.0/weftgate-demo.mp4) ·
+[Watch the full demo](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.1.1/weftgate-demo-motion.mp4) ·
 [Transcript and reproducible evidence](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/DEMO.md) · [How to write an oracle](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/ORACLES.md)
 
 ## Try it

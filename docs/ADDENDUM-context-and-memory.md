@@ -1,6 +1,6 @@
 # Grounded context, source-aware memory and verification
 
-The v0.2 product is a local second brain for coding agents: understand, remember,
+The v0.3 product is a local second brain for coding agents: understand, remember,
 verify. This extends the released v0.1 gate without changing its central rule:
 reject only a positive, machine-checkable falsehood. Missing evidence stays visible
 as review or unverifiable. A passing static gate is not complete correctness.
@@ -12,8 +12,11 @@ cache, changed-node history, and explicitly saved notes. CLI and MCP call the sa
 functions through `brain.call` and `gate.Session`.
 
 - `context.py`: exact resolution and bounded observed relationship slices.
-- `recall.py`: a typed public adaptation of mnemo's lexical storage, ranking and
-  source-grounding lifecycle. No private transcripts or personal configuration.
+- `recall.py` and `privacy.py`: local lexical storage, source grounding and
+  best-effort secret scrubbing adapted from Mnemo. No private transcripts or personal configuration.
+- `transfer.py`: bounded read-only import from an explicitly selected Mnemo database
+  or portable JSON export. Original hashes are retained; existing IDs are preserved.
+- `brief.py`: one task response combining notes and context, plus historical handoffs.
 - `workflow.py`: current-tree checks and optionally observed configured tests.
 - `hooks.py`: editor-specific completion responses with bounded continuation.
 - `payload.py`: compact serialization, complete-item elision and measured byte limits.
@@ -39,9 +42,17 @@ not duplicated as structuredContent. See [CONTEXT.md](CONTEXT.md).
 ## Memory contract
 
 `remember`, `recall` and `forget` are available from a single public install. An
-explicit source citation stores a file hash. Each recall checks candidate anchors;
+explicit source citation stores its source hash. File, env, import, route and
+symbol claims are checked before storage. Proven false claims refuse the write;
+missing evidence stays stale for review. Each recall checks candidate anchors;
 changed or deleted sources are hidden by default. Repeated reads never rewrite the
 original evidence. An explicit replacement with the note ID re-anchors reviewed text.
+
+The notebook also includes `brief`, `handoff`, `memory_import`, `memory_export` and
+`memory_stats`. Existing seven-column note tables remain readable. A handoff stores
+a historical checkpoint in a separate linked table; recall compares its fingerprint
+with the current tree. Tree changes while checking or saving roll back the handoff.
+Portable export copies summary notes without turning old checkpoints into proof.
 
 An anchored note is source-current, not semantically proven. Unanchored preferences
 are marked unverified. Every note is untrusted data, never authority over the user.

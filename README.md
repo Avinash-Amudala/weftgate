@@ -8,16 +8,17 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/pyproject.toml)
 [![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/LICENSE)
 
-Give your agent compact source context, decisions that notice changed files, and
-verification gates for broken code connections. One Python package works through
-your terminal, MCP, native completion hooks, and GitHub Actions.
+Give your agent compact source context, durable decisions and verification gates
+through **one install, one MCP server and one local memory store**. Weftgate brings
+Mnemo’s local memory workflow into the verification engine. You do not need to
+install or configure a second project for everyday use.
 
 ![Weftgate brain: understand, remember, verify](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/weftgate-brain.png)
 
 | Understand | Remember | Verify |
 | --- | --- | --- |
-| Resolve names and explore source-backed contract cards. | Save decisions with file anchors; hide stale notes on recall. | Check env names, imports and FastAPI routes; collect test evidence before handoff. |
-| `weftgate card "POST /orders"` | `weftgate recall "orders"` | `weftgate checkpoint --run` |
+| Start with relevant memories and current source references. | Check explicit memory claims; hide stale notes; resume in another agent. | Check code connections and save a handoff with observed test evidence. |
+| `weftgate brief "order retries"` | `weftgate remember ... --env DATABASE_URL` | `weftgate handoff ... --run` |
 
 **No API key. No runtime dependencies. Local storage. No automatic transcript capture.**
 Context, recall and default verification make no network calls. Explicitly enabled
@@ -25,7 +26,7 @@ test commands run your repository's code and can have their own side effects.
 
 [![Watch the 78-second motion demo](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/demo.gif)](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.2.0/weftgate-demo.mp4)
 
-[Watch the full demo](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.2.0/weftgate-demo.mp4) ·
+[Watch the v0.2 foundation demo](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.2.0/weftgate-demo.mp4) ·
 [Transcript and reproducible evidence](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/DEMO.md) · [How to write an oracle](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/ORACLES.md)
 
 ## Try it
@@ -36,7 +37,8 @@ cd /path/to/your/repo
 weftgate setup --agents codex,claude,cursor,antigravity --hooks --instructions
 weftgate doctor                   # inspect coverage and configured integrations
 weftgate audit                    # find existing broken connections
-weftgate resolve "your_function"  # compact source pointers
+weftgate brief "your next task"   # memories + current source context
+weftgate memory stats             # one local notebook and freshness counts
 weftgate checkpoint               # changed code + evidence still needed
 ```
 
@@ -98,8 +100,9 @@ The standard-library MCP server requires no extra package. Example MCP configura
 
 Run the server with the repository as its working directory. `weftgate setup --agents all`
 writes supported project configs and prints snippets for clients with global settings.
-CLI and MCP use the same functions. The new tools are `resolve`, `neighbors`, `card`,
-`remember`, `recall`, `forget`, and `checkpoint`, alongside the existing gate tools.
+CLI and MCP use the same functions. Start with `brief`, save decisions with
+`remember`, and use `handoff` for the next session. Focused context, recall,
+checkpoints, memory transfer and the existing verification tools remain available.
 
 | Client | Context and recall | Native gate installed by setup |
 | --- | --- | --- |
@@ -117,11 +120,13 @@ guardrails; require the GitHub Action in branch protection to enforce merge chec
 ## A small agent workflow
 
 ```bash
-weftgate card "POST /orders" --budget 1200
+weftgate brief "order retries" --reference app/orders.py --budget 1200
 weftgate remember "Order idempotency" "Keep duplicate requests idempotent." --file app/orders.py
-weftgate recall "orders"
+# Your coding agent makes the change. Then:
 weftgate check app/orders.py
-weftgate checkpoint --run --require-ready
+weftgate handoff "Order retries" "Added retry handling. Next: review timeout behavior." --file app/orders.py --run --require-ready
+# In Codex, Claude Code, Cursor or another MCP client:
+weftgate brief "order retries"
 ```
 
 Use paths and routes that exist in your project. Configure the commands the last
@@ -169,14 +174,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: Avinash-Amudala/weftgate@v0.2.0
+      - uses: Avinash-Amudala/weftgate@v0.3.0
         with:
           mode: check             # or audit to inspect the repository
 ```
 
 The Action supports `base`, `paths` (shell-quoted paths, no shell expansion),
 `block-on`, and `python-version`. Use a full checkout for diff ancestry.
-The [pre-commit hooks](https://github.com/Avinash-Amudala/weftgate/blob/main/.pre-commit-hooks.yaml) use the same gate; pin `rev: v0.2.0`.
+The [pre-commit hooks](https://github.com/Avinash-Amudala/weftgate/blob/main/.pre-commit-hooks.yaml) use the same gate; pin `rev: v0.3.0`.
 
 ## Configure the contract
 
@@ -198,15 +203,38 @@ allowlist. See [security and execution boundaries](https://github.com/Avinash-Am
 
 ## Memory that notices changed code
 
-The public package integrates a compact, repository-scoped subset of mnemo's
-lexical memory design. `remember`, `recall` and `forget` need no companion install.
-File hashes are checked before recall. Notes with changed or deleted sources stay
-hidden unless you explicitly request `--include-stale`. Review a note and replace it
-with `remember --id ID` to update its grounding.
+Weftgate's notebook checks explicit file, environment, route, import and symbol
+claims before saving them. A proven false claim is refused with available suggestions.
+Uncertain claims stay available for review. Recall checks original source hashes,
+and notes with changed or missing evidence stay hidden by default. Source anchors
+support a claim about freshness; the note's prose remains unverified.
 
-An **anchored** note has unchanged source files; its prose is not proven true.
-Notes without sources are clearly **unverified**. Nothing captures your conversations
-automatically. [Storage, privacy and legacy mnemo integration](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MEMORY.md).
+```bash
+weftgate remember "Database access" "Use the declared connection." --env DATABASE_URL
+weftgate recall "database"
+weftgate recall "database" --include-stale
+weftgate memory stats
+```
+
+`handoff` saves a summary and its scoped checkpoint in the same notebook. Another
+agent can resume through `brief`; remembered test evidence is labeled historical
+and changes to the current tree are detected. Obvious secret patterns are scrubbed
+from note text, but do not treat this as permission to store credentials.
+
+Already have Mnemo data? Preview and import selected memories without installing
+Mnemo or modifying its database:
+
+```bash
+weftgate memory import /path/to/mnemo.sqlite --limit 10
+weftgate memory import /path/to/mnemo.sqlite --limit 10 --apply
+```
+
+The legacy repository remains compatible for existing transcript and team-hub
+users. Automatic capture, external embeddings and team federation are outside the
+public local workflow. They are not silently enabled by migration.
+[Memory and trust](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MEMORY.md) ·
+[Migration and backup](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MNEMO-MIGRATION.md) ·
+[Architecture and scope](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/DESIGN.md).
 
 ## Contribute
 

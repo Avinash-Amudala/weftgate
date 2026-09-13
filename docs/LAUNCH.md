@@ -1,6 +1,6 @@
 # Weftgate launch plan
 
-Goal: earn 1,000 genuine GitHub stars by making a useful verification gate easy to
+Goal: earn 1,000 genuine GitHub stars by making a useful context, memory and gate workflow easy to
 try, trust, and extend. This is a target, not a promise or a forecast. Stars are a
 secondary measure; repeat usage, reproducible bug reports, and outside contributions
 are better evidence of value.
@@ -12,7 +12,10 @@ are better evidence of value.
 Weftgate brings source-backed context, a local decision notebook, and verification
 into one Python package. It exposes the same tools through CLI and MCP, configures
 completion gates for Codex, Claude Code, Cursor and Antigravity, and offers a GitHub
-Action for merge checks. No API key or private mnemo installation is needed.
+Action for merge checks. No API key or private Mnemo installation is needed.
+The v0.3 consolidation adds a combined task brief, checked memory claims, historical
+handoffs and explicit Mnemo migration. Say "one install, one MCP server, one local
+notebook" and demonstrate that complete workflow.
 
 Make the three benefits visible immediately:
 
@@ -173,3 +176,16 @@ At launch, the repository still has 1 star and 0 forks. No 1,000-star outcome is
 claimed. Aggregate traffic snapshots stay local in `.launch-metrics/`; no paid spend
 or automated ongoing campaign has been started. Continue the six-week trial-feedback
 plan above, with one substantive follow-up at a time.
+
+## v0.3 consolidation follow-up
+
+Use one substantive update to the existing GitHub announcement after the tagged
+release and fresh PyPI installation pass. Link the migration guide and explain that
+reviewed local memories, task briefs and handoffs are built into Weftgate. The old
+Mnemo repository is retained for optional capture/embedding/hub workflows.
+
+The current film demonstrates the v0.2 foundation. Do not label it a recording of
+the new v0.3 commands. Preserve existing launch posts and the Show HN submission;
+avoid a second wave of identical same-day posts. The next technical article should
+show a reproducible cross-agent handoff and a real adopter's feedback, with permission.
+No new paid placement or recurring outreach is started by this update.

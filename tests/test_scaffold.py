@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -29,20 +30,18 @@ def test_scaffold_writes_oracle_and_tests(tmp_path):
     oracle = os.path.join(root, "weftgate", "oracles", "config_keys.py")
     test = os.path.join(root, "tests", "test_config_keys.py")
     assert os.path.isfile(oracle) and os.path.isfile(test)
-    ast.parse(open(oracle).read())  # compiles
-    ast.parse(open(test).read())
-    src = open(oracle).read()
+    ast.parse(Path(oracle).read_text(encoding="utf-8"))  # compiles
+    ast.parse(Path(test).read_text(encoding="utf-8"))
+    src = Path(oracle).read_text(encoding="utf-8")
     assert "class ConfigKeysOracle(BaseOracle)" in src
     assert 'kinds: tuple[str, ...] = ("config_key",)' in src
     assert "def register(api: OracleAPI)" in src
-    assert (
-        '"config_keys": "weftgate.oracles.config_keys:register"'
-        in open(os.path.join(root, "weftgate", "oracles", "__init__.py")).read()
-    )
-    assert (
-        'config_keys = "weftgate.oracles.config_keys:register"'
-        in open(os.path.join(root, "pyproject.toml")).read()
-    )
+    assert '"config_keys": "weftgate.oracles.config_keys:register"' in Path(
+        os.path.join(root, "weftgate", "oracles", "__init__.py")
+    ).read_text(encoding="utf-8")
+    assert 'config_keys = "weftgate.oracles.config_keys:register"' in Path(
+        os.path.join(root, "pyproject.toml")
+    ).read_text(encoding="utf-8")
     # Refuses to overwrite.
     proc = subprocess.run(
         [sys.executable, script, "config_keys", "--kind", "config_key", "--root", root],

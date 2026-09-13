@@ -22,7 +22,7 @@ dependencies = []
 
 [project.optional-dependencies]
 demo = ["Pillow>=10.0", "imageio-ffmpeg>=0.5"]
-# Optional accelerators reserved for future oracles. The v0.2 core does not use
+# Optional accelerators reserved for future oracles. The core does not use
 # treesitter, lsp or yaml. mcp is used by tests to drive the stdlib server through
 # the official client. No extra is needed for context, memory, hooks or serving MCP.
 treesitter = ["tree-sitter>=0.21", "tree-sitter-language-pack>=0.7"]

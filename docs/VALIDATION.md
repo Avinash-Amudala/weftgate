@@ -1,5 +1,32 @@
 # Release validation
 
+## Unified memory workflow, v0.3.0
+
+Local validation on macOS / Python 3.13:
+
+- **229 tests passed, 91.07% line coverage**, including a run treating resource and
+  unraisable-exception warnings as errors. File handles in older tests and the
+  self-test were corrected during that stricter check.
+- Ruff lint and formatting, strict mypy, the offline self-test, and all 13 seeded
+  fixture mutations passed. Self-audit reports four dynamic plugin imports for
+  review and no blocking findings.
+- A wheel built from the source distribution installed with no runtime dependencies
+  in a fresh virtual environment outside the checkout. `pip check` and the offline
+  self-test passed; MCP, tree-sitter, pylsp and yaml were confirmed absent.
+- Regression tests cover explicit false memory claims, missing evidence, dependency
+  contract drift, Unicode search, source-preserving migration, legacy schemas,
+  preferences/todos, redaction, malformed input, import rollback and export paging.
+- Brief/transfer CLI and MCP parity, byte budgets, explicit test opt-in, historical
+  handoff evidence, source changes during tests and rollback on changes while saving
+  are covered. Existing v0.2 note IDs and the lower-level memory API remain compatible.
+- The local legacy Mnemo self-test also passes against this source tree, including
+  its source-grounding integration. No private database or transcript was migrated
+  as part of validation; transfer fixtures are fabricated.
+
+Cross-platform release results are recorded by the linked pull request and tag
+workflow once they complete. The existing 78-second film demonstrates the v0.2
+foundation; it does not record the new v0.3 commands.
+
 ## Grounded context and recall, v0.2.0
 
 Local validation before the release:

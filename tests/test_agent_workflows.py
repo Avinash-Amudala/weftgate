@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -97,9 +98,9 @@ def test_setup_all_merges_rules_hooks_and_codex_config_idempotently(repo, capsys
         ".agents/hooks.json",
         ".agents/mcp_config.json",
     ):
-        assert "weftgate" in open(os.path.join(repo, rel)).read()
-    assert "my-check" in open(os.path.join(repo, ".cursor/hooks.json")).read()
-    assert "custom" in open(os.path.join(repo, ".agents/hooks.json")).read()
+        assert "weftgate" in Path(os.path.join(repo, rel)).read_text(encoding="utf-8")
+    assert "my-check" in Path(os.path.join(repo, ".cursor/hooks.json")).read_text(encoding="utf-8")
+    assert "custom" in Path(os.path.join(repo, ".agents/hooks.json")).read_text(encoding="utf-8")
     assert setup.run(repo, agents=["all"], hooks=True, instructions=True, fmt="json") == 0
     assert json.loads(capsys.readouterr().out)["written"] == []
 

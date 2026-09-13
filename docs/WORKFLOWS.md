@@ -1,7 +1,8 @@
 # Evidence before handoff
 
-The workflow is: recall relevant decisions, resolve the code, make a focused change,
-check the changed references, run project tests, and hand off observed evidence.
+The workflow is: start with `brief`, make a focused change, check references, and
+use `handoff --run` to save the summary with observed test evidence. `remember` saves
+individual decisions along the way. All operations use the same local notebook.
 Weftgate supplies those tools. Your coding agent performs the reasoning and repair.
 
 `weftgate checkpoint` checks current working-tree content against HEAD, including
@@ -49,3 +50,29 @@ Antigravity requests continuation only for a normally completed, fully idle firs
 execution. Interruptions/errors are not resumed. Missing tests do not cause an
 infinite loop. Use `checkpoint --run --require-ready` and required CI checks for
 stronger handoff and merge policies.
+
+
+## One session to the next
+
+```bash
+weftgate brief "order retries" --reference app/orders.py --budget 1200
+# Make the change with your coding agent.
+weftgate handoff "Order retries" "Added retry handling. Next: review timeout behavior." --file app/orders.py --run --require-ready
+# In a later session or a different agent:
+weftgate brief "order retries"
+```
+
+`brief` combines relevant memories and static source context within one response
+budget. It interleaves the two so a small response can contain both. It does not
+execute tests, read transcripts or prove remembered conclusions. `resolution` and
+omission counts expose missing or budget-limited context.
+
+`handoff` accepts the same explicit reference flags as `remember`, plus `--run` and
+`--require-ready`. Without `--run`, the report clearly says test evidence is missing.
+A failing checkpoint can be saved as an unfinished handoff; it remains blocked.
+If a command changes repository files, review the summary and retry instead of
+saving a checkpoint for a different tree. Explicit note replacement clears the old
+handoff evidence so it cannot certify a new summary.
+
+An exported or migrated handoff is a historical note. Live checkpoint evidence is
+kept in the originating notebook and is not transferred as a reusable certificate.

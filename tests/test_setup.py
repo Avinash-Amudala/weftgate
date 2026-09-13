@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -28,14 +29,14 @@ def test_setup_writes_config_and_builds_index(tmp_path, capsys):
     summary = json.loads(capsys.readouterr().out)
     assert summary["written"] == ["weftgate.toml"] and "fastapi" in summary["stack"]
     assert summary["index"]["oracles"]["routes_fastapi"]["built"] is True
-    text = open(os.path.join(root, "weftgate.toml")).read()
+    text = Path(os.path.join(root, "weftgate.toml")).read_text(encoding="utf-8")
     assert 'app = "app.main:app"' in text and 'oracles = ["env_vars"' in text
     # A second run keeps the existing config unless forced.
     assert setup.run(root) == 0
     assert "keep" in capsys.readouterr().out
     write(root, "weftgate.toml", '[weftgate]\noracles = ["env_vars"]\n')
     assert setup.run(root, force=True) == 0
-    assert "routes_fastapi" in open(os.path.join(root, "weftgate.toml")).read()
+    assert "routes_fastapi" in Path(os.path.join(root, "weftgate.toml")).read_text(encoding="utf-8")
 
 
 def test_setup_hooks_merge_without_clobbering(tmp_path, capsys):
@@ -58,19 +59,26 @@ def test_setup_hooks_merge_without_clobbering(tmp_path, capsys):
     )
     write(root, ".mcp.json", json.dumps({"mcpServers": {"other": {"command": "x"}}}))
     assert setup.run(root, hooks=True) == 0
-    settings = json.load(open(os.path.join(root, ".claude", "settings.json")))
+    settings = json.loads(
+        Path(os.path.join(root, ".claude", "settings.json")).read_text(encoding="utf-8")
+    )
     assert settings["permissions"] == {"allow": ["Bash(ls)"]}
     pre = settings["hooks"]["PreToolUse"]
     assert pre[0]["matcher"] == "Bash" and pre[1]["matcher"] == "Edit|Write|MultiEdit"
     assert pre[1]["hooks"][0]["command"] == "weftgate hook claude"
-    mcp = json.load(open(os.path.join(root, ".mcp.json")))
+    mcp = json.loads(Path(os.path.join(root, ".mcp.json")).read_text(encoding="utf-8"))
     assert set(mcp["mcpServers"]) == {"other", "weftgate"}
     if have_git():
         hook = os.path.join(root, ".git", "hooks", "pre-commit")
-        assert os.access(hook, os.X_OK) and "weftgate check --staged" in open(hook).read()
+        assert os.access(hook, os.X_OK) and "weftgate check --staged" in Path(hook).read_text(
+            encoding="utf-8"
+        )
     # Idempotent: running again changes nothing.
     assert setup.run(root, hooks=True) == 0
-    assert json.load(open(os.path.join(root, ".claude", "settings.json"))) == settings
+    assert (
+        json.loads(Path(os.path.join(root, ".claude", "settings.json")).read_text(encoding="utf-8"))
+        == settings
+    )
     capsys.readouterr()
 
 
@@ -86,7 +94,7 @@ def test_worktree_setup_preserves_shared_hook_and_doctor_detects_git(tmp_path, c
     git(root, "worktree", "add", "-b", "linked", worktree)
     assert setup.run(worktree, hooks=True, agents=["codex"]) == 0
     assert "shared/external Git hook preserved" in capsys.readouterr().out
-    assert open(shared_hook).read() == "#!/bin/sh\nweftgate check --staged\n"
+    assert Path(shared_hook).read_text(encoding="utf-8") == "#!/bin/sh\nweftgate check --staged\n"
     assert os.path.isfile(os.path.join(worktree, ".codex", "hooks.json"))
     checks = {c["name"]: c for c in doctor.run(worktree)["checks"]}
     assert checks["git"]["ok"] is True
@@ -179,18 +187,27 @@ def test_setup_agents_write_project_configs_and_print_snippets(tmp_path, capsys)
     assert cli_main(["--repo", root, "--format", "json", "setup", "--agents", "all"]) == 0
     summary = json.loads(capsys.readouterr().out)
     assert set(summary["snippets"]) == {"windsurf", "claude-desktop"}
-    assert json.load(open(os.path.join(root, ".mcp.json")))["mcpServers"]["weftgate"]["args"] == [
-        "mcp"
-    ]
-    assert "weftgate" in json.load(open(os.path.join(root, ".cursor", "mcp.json")))["mcpServers"]
-    vscode = json.load(open(os.path.join(root, ".vscode", "mcp.json")))["servers"]
+    assert json.loads(Path(os.path.join(root, ".mcp.json")).read_text(encoding="utf-8"))[
+        "mcpServers"
+    ]["weftgate"]["args"] == ["mcp"]
+    assert (
+        "weftgate"
+        in json.loads(Path(os.path.join(root, ".cursor", "mcp.json")).read_text(encoding="utf-8"))[
+            "mcpServers"
+        ]
+    )
+    vscode = json.loads(
+        Path(os.path.join(root, ".vscode", "mcp.json")).read_text(encoding="utf-8")
+    )["servers"]
     assert set(vscode) == {"other", "weftgate"}
     # No Claude hook without --hooks; text mode prints the snippets.
     assert not os.path.exists(os.path.join(root, ".claude", "settings.json"))
     assert setup.run(root, agents=["codex"]) == 0
     out = capsys.readouterr().out
     assert ".codex/config.toml" in out
-    assert "[mcp_servers.weftgate]" in open(os.path.join(root, ".codex", "config.toml")).read()
+    assert "[mcp_servers.weftgate]" in Path(os.path.join(root, ".codex", "config.toml")).read_text(
+        encoding="utf-8"
+    )
     try:
         setup.run(root, agents=["nope"])
     except ValueError as exc:

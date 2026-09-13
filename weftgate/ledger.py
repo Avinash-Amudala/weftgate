@@ -1,8 +1,4 @@
-"""The honest token metric (docs/ADDENDUM section A6): a local ledger of every
-blocking verdict the gate produced before code shipped. A hallucinated reference
-that ships costs a full failed round trip (the attempt, the error, the correction),
-so each avoided one is the number to lead with. Nothing here is a marketing
-percentage: it is a count of concrete events on the user's own repos.
+"""Local observed gate events and delivered context bytes. No inferred savings.
 
 One JSON line per event under the cache directory (``WEFTGATE_LEDGER=0`` disables it).
 Standard library only; never raises into the gate.
@@ -17,10 +13,6 @@ from typing import Any
 
 from .store import cache_dir
 from .types import GateResult, Level
-
-# A conservative estimate of what one shipped broken wire costs an agent loop: the
-# failed attempt, the error output, and the corrective turn. Reported as an estimate.
-ROUND_TRIP_TOKENS = 6_000
 
 
 def enabled() -> bool:
@@ -71,8 +63,29 @@ def read(limit: int | None = None) -> list[dict[str, Any]]:
     return events[-limit:] if limit else events
 
 
+def record_context(payload: dict[str, Any], repo_root: str, surface: str) -> None:
+    if not enabled() or "usage" not in payload:
+        return
+    event = {
+        "ts": int(time.time()),
+        "event": "context",
+        "surface": surface,
+        "repo": os.path.basename(os.path.abspath(repo_root)),
+        "operation": payload.get("operation"),
+        "bytes": payload["usage"]["bytes"],
+        "omitted": payload["usage"]["omitted"],
+    }
+    try:
+        with open(path(), "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, sort_keys=True) + "\n")
+    except OSError:
+        pass
+
+
 def summary(events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     events = read() if events is None else events
+    context_events = [e for e in events if e.get("event") == "context"]
+    events = [e for e in events if e.get("event") != "context"]
     blocks = len(events)
     rejects = sum(int(e.get("rejects", 0)) for e in events)
     by_repo: dict[str, int] = {}
@@ -88,11 +101,11 @@ def summary(events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         "enabled": enabled(),
         "blocks": blocks,
         "broken_wires": rejects,
-        "estimated_tokens_saved": blocks * ROUND_TRIP_TOKENS,
-        "estimate_note": (
-            f"assumes one avoided retry loop of about {ROUND_TRIP_TOKENS} tokens "
-            f"per blocked change; an estimate, not a measurement"
-        ),
+        "context_requests": len(context_events),
+        "context_bytes": sum(int(e.get("bytes", 0)) for e in context_events),
+        "context_items_omitted": sum(int(e.get("omitted", 0)) for e in context_events),
+        "measurement_note": "Counts observed calls and payload bytes. Repeated failures can "
+        "repeat counts. Token savings and avoided retries are not measured.",
         "by_repo": dict(sorted(by_repo.items())),
         "by_oracle": dict(sorted(by_oracle.items())),
         "by_surface": dict(sorted(by_surface.items())),
@@ -102,7 +115,7 @@ def summary(events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
 
 
 def render_text(info: dict[str, Any]) -> str:
-    if not info["blocks"]:
+    if not info["blocks"] and not info["context_requests"]:
         return (
             f"ledger: no blocked changes recorded yet ({info['path']})\n"
             f"every reject weftgate raises before code ships is counted here"
@@ -110,7 +123,8 @@ def render_text(info: dict[str, Any]) -> str:
     lines = [
         f"ledger: {info['blocks']} blocked change(s), {info['broken_wires']} broken wire(s) "
         f"caught before they shipped",
-        f"  estimated tokens saved: ~{info['estimated_tokens_saved']:,}  ({info['estimate_note']})",
+        f"  context: {info['context_requests']} response(s), {info['context_bytes']:,} JSON bytes",
+        f"  {info['measurement_note']}",
     ]
     for label, key in (
         ("by repo", "by_repo"),

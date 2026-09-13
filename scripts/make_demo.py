@@ -470,15 +470,15 @@ def scene(index: int, u: float, t: float, data: dict) -> Image.Image:
         text(d, (1254, 614), "exit code 0 · does not block", 26, TEXT)
         reveal(im, (97, 843), "Evidence first. Honest limits.", 50, u, 2.0, MINT)
     elif index == 5:
-        reveal(im, (91, 173), "One gate. Every workflow.", 77, u, color=INK)
+        reveal(im, (91, 173), "One engine. Four editors.", 77, u, color=INK)
         text(d, (97, 281), "The same verification engine, wherever you work.", 31, "#586c76")
         cx, cy = 958, 650
         for i, (name, detail, x, y) in enumerate(
             [
-                ("CLI", "Your terminal", 342, 490),
-                ("MCP", "Your coding agent", 1548, 490),
-                ("GITHUB ACTION", "Your pull request", 342, 823),
-                ("HOOKS", "Before a commit", 1548, 823),
+                ("CODEX", "MCP + Stop check", 342, 490),
+                ("CLAUDE CODE", "Pre-edit + Stop check", 1548, 490),
+                ("CURSOR", "MCP + Stop check", 342, 823),
+                ("ANTIGRAVITY", "MCP + Stop check", 1548, 823),
             ]
         ):
             wire(d, (cx, cy), (x, y), t, "#268767", i * 0.25)
@@ -601,7 +601,12 @@ def captions(out: Path) -> None:
         (24, 30, "Apply the suggested names and run the same check."),
         (30, 33, "The corrected fixture returns ACCEPT, with exit code zero."),
         (33, 41, "A dynamic environment key returns REVIEW. Uncertainty does not block."),
-        (41, 48, "One verification engine for CLI, MCP, GitHub Action, and hooks."),
+        (
+            41,
+            48,
+            "Native completion checks for Codex, Claude Code, Cursor and Antigravity. "
+            "Activate hooks in your client.",
+        ),
         (48, 58, "pip install weftgate. Run weftgate audit. Try it and share a reproduction."),
     ]
     out.write_text(

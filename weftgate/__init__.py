@@ -1,3 +1,3 @@
-"""weftgate: a verification gate for coding agents that checks the wiring, not the spelling."""
+"""weftgate: local context, source-aware memory and verification for coding agents."""
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"

@@ -268,7 +268,24 @@ def _checks(root: str, store: str) -> list[Check]:
             finally:
                 memory.close_sessions()  # the plugin caches a Session per repo
 
+    def brain_context_and_recall() -> None:
+        from . import context, recall, workflow
+        from .payload import encode
+
+        with Session(root, store_path=store) as s:
+            card = context.query(s, "card", "POST /api/orders")
+            _expect(card["status"] == "resolved", "route card did not resolve")
+            _expect(len(encode(card).encode()) <= card["usage"]["max_bytes"], "budget overflow")
+            note = recall.remember(
+                s, "Orders", "Route implementation lives here.", files=["app/orders.py"]
+            )
+            _expect(note["state"] == "anchored", "memory did not anchor")
+            _expect(len(recall.recall(s, "orders")["items"]) == 1, "memory was not recalled")
+            _expect(workflow.checkpoint(s)["state"] == "blocked", "checkpoint missed broken code")
+            _expect(recall.forget(s, note["id"])["deleted"], "forget failed")
+
     return [
+        ("bounded context, source-aware recall and checkpoint", brain_context_and_recall),
         ("index builds", index_builds),
         ("diff mode rejects broken wires with suggestions", diff_mode_rejects_broken_wires),
         ("diff mode accepts clean code", diff_mode_accepts_clean_code),

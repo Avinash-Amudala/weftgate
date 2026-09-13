@@ -17,7 +17,7 @@ import os
 import sys
 from typing import Any, TextIO
 
-from . import __version__, gate, ledger, memory
+from . import __version__, brain, gate, ledger, memory
 from .change import Change
 from .config import find_repo_root
 
@@ -176,6 +176,11 @@ def call_tool(
     """Run one tool and return the same dict the CLI prints for the same input."""
     args = dict(args or {})
     repo = _resolve_repo(args.pop("repo", None), default_repo)
+    if name in brain.NAMES:
+        with gate.Session(repo, store_path=store_path) as session:
+            payload = brain.call(name, session, args)
+        ledger.record_context(payload, repo, "mcp")
+        return payload
     match name:
         case "check_change":
             change = _change_from_args(args, repo)
@@ -293,7 +298,7 @@ def handle_message(
             case "ping":
                 result = {}
             case "tools/list":
-                result = {"tools": TOOLS}
+                result = {"tools": TOOLS + brain.tools()}
             case "tools/call":
                 name = str(params.get("name", ""))
                 arguments = params.get("arguments") or {}
@@ -312,7 +317,13 @@ def handle_message(
 
 
 def _tool_result(payload: dict[str, Any], is_error: bool) -> dict[str, Any]:
-    text = json.dumps(payload, indent=2, sort_keys=True)
+    from .payload import encode
+
+    text = encode(payload) if "usage" in payload else json.dumps(payload, indent=2, sort_keys=True)
+    if "usage" in payload:
+        # Avoid sending the same bounded context twice in clients that expose both
+        # text and structuredContent to the model. No outputSchema requires it.
+        return {"content": [{"type": "text", "text": text}], "isError": is_error}
     return {
         "content": [{"type": "text", "text": text}],
         "structuredContent": payload,

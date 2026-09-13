@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 from typing import Any
 
 from .config import Config, detect_stack, repo_config_path
@@ -51,6 +50,8 @@ def run(repo_root: str, store_path: str | None = None) -> dict[str, Any]:
     )
 
     with Session(repo_root, config=config, store_path=store_path) as s:
+        is_git = s.store.is_git_repo()
+        hook_location = s.store._git("rev-parse", "--git-path", "hooks/pre-commit")
         sync_report = s.sync()
         for name, info in sync_report.items():
             built = bool(info.get("built"))
@@ -110,17 +111,17 @@ def run(repo_root: str, store_path: str | None = None) -> dict[str, Any]:
                 if n_files or "fastapi" not in stack
                 else "FastAPI is a dependency but no route registrations were found",
             )
-    is_git = shutil.which("git") is not None and os.path.isdir(os.path.join(repo_root, ".git"))
     add(
         "git",
         True if is_git else None,
-        "git repo" if os.path.isdir(os.path.join(repo_root, ".git")) else "not a git repo",
+        "git repo (including worktrees)" if is_git else "not a git repo",
         ""
-        if os.path.isdir(os.path.join(repo_root, ".git"))
+        if is_git
         else "without git, sync uses a file fingerprint scan (fine, just slower on huge trees)",
     )
     hooks = {
-        "git pre-commit": os.path.isfile(os.path.join(repo_root, ".git", "hooks", "pre-commit")),
+        "git pre-commit": bool(hook_location)
+        and _mentions(os.path.join(repo_root, (hook_location or "").strip()), "weftgate check"),
         "Claude Code hook": _mentions(
             os.path.join(repo_root, ".claude", "settings.json"), "weftgate hook claude"
         ),
@@ -129,6 +130,29 @@ def run(repo_root: str, store_path: str | None = None) -> dict[str, Any]:
         ".vscode/mcp.json": _mentions(os.path.join(repo_root, ".vscode", "mcp.json"), '"weftgate"'),
     }
     installed = [k for k, v in hooks.items() if v]
+    for agent, directory in (
+        ("Codex", ".codex"),
+        ("Cursor", ".cursor"),
+        ("Antigravity", ".agents"),
+    ):
+        configured = _mentions(os.path.join(repo_root, directory, "hooks.json"), "weftgate hook")
+        add(
+            f"{agent} completion hook",
+            None,
+            "configured; runtime trust not inspected" if configured else "not configured",
+            "Enable/trust the hook in the client; verify with a disposable broken fixture."
+            if configured
+            else f"weftgate setup --agents {agent.lower()} --hooks --instructions",
+        )
+    commands = config.oracle_config("workflow").get("commands", [])
+    add(
+        "workflow test evidence",
+        None,
+        f"{len(commands)} configured command(s)"
+        if isinstance(commands, list)
+        else "invalid command configuration",
+        "Set [weftgate.workflow] commands, then run `weftgate checkpoint --run --require-ready`.",
+    )
     add(
         "hooks",
         None,

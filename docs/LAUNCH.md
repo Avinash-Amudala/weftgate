@@ -7,17 +7,25 @@ are better evidence of value.
 
 ## Positioning
 
-**Catch broken connections in agent-written code before it ships.**
+**A local second brain for coding agents. Understand. Remember. Verify.**
 
-For developers using coding agents in Python/FastAPI or Node projects, Weftgate checks
-env reads against declarations, imports against dependency metadata, and FastAPI route
-references against handlers. One local gate works through the CLI, MCP, hooks, and CI.
-The default core requires no API key and sends no repository contents over the network.
+Weftgate brings source-backed context, a local decision notebook, and verification
+into one Python package. It exposes the same tools through CLI and MCP, configures
+completion gates for Codex, Claude Code, Cursor and Antigravity, and offers a GitHub
+Action for merge checks. No API key or private mnemo installation is needed.
 
-Lead with a concrete example: `DATABSE_URL` → `DATABASE_URL`. Show actual output and
-explain that uncertain references return `review` or `unverifiable`. Avoid claims of
-universal coverage, zero false positives, guaranteed token savings, or security certification.
-The demo uses an intentionally broken fixture; its results are not field benchmarks.
+Make the three benefits visible immediately:
+
+| Benefit | Demonstration | Precise claim |
+| --- | --- | --- |
+| Understand | A route contract card with source locations and relationships. | Compact static context with an explicit JSON byte cap; model tokens are estimated. |
+| Remember | Save a decision, change its cited file, recall again. | Stale source-backed notes are hidden by default; unchanged sources do not prove prose true. |
+| Verify | Misspelled env name, missing dependency, undefined route handler, then a clean recheck. | Positive false references block; dynamic and unavailable evidence stays advisory. |
+
+The 78-second film demonstrates these with captured CLI evidence and a custom brain
+visual. It uses an intentionally broken fixture, not a field benchmark. Avoid claims
+of universal editor enforcement, full call-graph understanding, automatic test repair,
+zero false positives, exact token savings, or guaranteed correct software.
 
 ## Ship before promoting
 
@@ -27,12 +35,12 @@ The demo uses an intentionally broken fixture; its results are not field benchma
   trusted publishing, release notes, and Marketplace listing if eligible.
 - Captioned MP4, lightweight GIF, poster, and the exact code/results used in the demo.
 - Minimal reproducible examples covering `reject`, `accept`, `review`, and `unverifiable`.
-- No need to install mnemo to try the verification gate. Keep the optional integration
-  clearly marked while the mnemo repository is private.
+- Context, recall and gates install together. Keep the legacy companion integration
+  clearly marked while the mnemo repository remains private.
 
 ## Six-week plan
 
-Dates start after the first verified public release. Do not publish a broken install
+Use the original release as the baseline; the v0.2 update adds a substantive context/memory story. Do not publish a broken install
 link to meet a calendar date. The milestones below are planning checkpoints, not
 predicted star counts.
 
@@ -54,8 +62,8 @@ the tool does not solve a problem for those visitors.
 
 ### Repository description
 
-Local verification for coding agents: catch broken env, import, and FastAPI route
-references. CLI, MCP, hooks, and GitHub Action. No API key.
+Local second brain for coding agents: grounded context, source-checked memory and
+verification gates. CLI, MCP, editor hooks and CI. No API key.
 
 ### Show HN: human-authored submission
 
@@ -67,24 +75,38 @@ generated and AI-edited text in comments. Never solicit votes or coordinated com
 
 ### LinkedIn / personal technical post
 
-Agent-written code can look plausible while pointing at the wrong thing.
+Weftgate 0.2 gives coding agents a local second brain.
 
-I’m releasing Weftgate, an open-source local gate for env declarations, dependency
-imports, and FastAPI route references. The short demo shows three real findings,
-the suggested corrections, and the clean recheck.
+Understand: ask for compact source context instead of loading whole files.
+Remember: save decisions with file anchors, and hide them when their sources change.
+Verify: catch broken env, import and FastAPI route references, then collect observed
+test results before handing work back.
 
-The central rule: block only on a machine-checkable false reference. Dynamic or
-incomplete evidence stays advisory. It works through a CLI, MCP, hooks, and CI.
+One install. CLI and MCP. Setup for Codex, Claude Code, Cursor and Antigravity.
+No API key, automatic transcript capture or runtime dependencies.
 
-Try it on a project you know well:
-`pip install weftgate`
-`weftgate audit`
+Hooks need activation in your editor. Uncertainty stays advisory. Required CI checks
+provide merge enforcement, and passing checks still have a defined scope.
 
-I’d like feedback on installation, useful catches, and false blocks.
+The new 78-second demo shows the whole loop with real CLI output.
+Try it: `pip install weftgate`
 https://github.com/Avinash-Amudala/weftgate
 
-Attach `docs/assets/weftgate-demo.mp4`. Publish once, answer responses, and share a
-follow-up only when there is a concrete improvement or result.
+I maintain this project and would like feedback on onboarding, useful context and
+false blocks. Attach `docs/assets/weftgate-demo.mp4` after the release is verified.
+
+### X announcement
+
+Weftgate: a local second brain for coding agents.
+
+Understand code. Remember decisions. Verify changes.
+
+Source-backed context, memory that notices changed files, and gates for Codex,
+Claude Code, Cursor and Antigravity.
+
+https://github.com/Avinash-Amudala/weftgate
+
+Attach the new film. Do not post a link-only substitute while native video is requested.
 
 ### Community post
 
@@ -92,7 +114,7 @@ Use a minimal example in the community’s language/stack. Explain the failure a
 limitations first. State “I maintain this project.” Check the community’s current
 rules immediately before posting. Do not paste identical posts into many communities.
 
-## Published launch posts
+## Original v0.1 published launch posts
 
 - [GitHub Marketplace Action](https://github.com/marketplace/actions/weftgate)
 - [GitHub announcement](https://github.com/Avinash-Amudala/weftgate/discussions/11)
@@ -134,5 +156,13 @@ Relevant platform references:
 - [Show HN guidelines](https://news.ycombinator.com/showhn.html) require something people can try and prohibit asking friends to vote.
 - [GitHub Marketplace publishing](https://docs.github.com/en/actions/sharing-automations/creating-actions/publishing-actions-in-github-marketplace) describes the release-page listing flow and eligibility.
 
-No third-party posts, direct outreach, or advertising purchases are claimed complete
-by this document. Record actual published URLs after posting.
+## v0.2 launch status
+
+- Source, brain hero, captioned film, integration guide and technical article: prepared.
+- Publication and fresh PyPI install: verify before posting the update.
+- [v0.2 article source](launch/V020-POST.md): draft until an actual URL is recorded.
+- Existing Show HN submission: preserve it; do not submit a duplicate for this update.
+- X native-video upload: previously blocked by browser permissions; retry after release.
+- Paid placements and direct outreach: none purchased or sent.
+
+Record actual publication URLs and measured results here. Do not mark drafts as posts.

@@ -1,6 +1,6 @@
 # weftgate
 
-**Catch broken connections in agent-written code before it ships.**
+**A local second brain for coding agents. Understand the code. Remember decisions. Verify changes.**
 
 [![CI](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml/badge.svg)](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/weftgate)](https://pypi.org/project/weftgate/)
@@ -8,15 +8,24 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/pyproject.toml)
 [![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/LICENSE)
 
-A mistyped environment variable. An import missing from the lockfile. A FastAPI route
-pointing at a handler that does not exist. Weftgate checks these connections against
-your repository through one local CLI, MCP server, hook, or GitHub Action.
+Give your agent compact source context, decisions that notice changed files, and
+verification gates for broken code connections. One Python package works through
+your terminal, MCP, native completion hooks, and GitHub Actions.
 
-**No API key. No runtime dependencies. No network calls on the default verification path.**
+![Weftgate brain: understand, remember, verify](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/weftgate-brain.png)
 
-[![Watch the 58-second motion demo](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/demo.gif)](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.1.1/weftgate-demo-motion.mp4)
+| Understand | Remember | Verify |
+| --- | --- | --- |
+| Resolve names and explore source-backed contract cards. | Save decisions with file anchors; hide stale notes on recall. | Check env names, imports and FastAPI routes; collect test evidence before handoff. |
+| `weftgate card "POST /orders"` | `weftgate recall "orders"` | `weftgate checkpoint --run` |
 
-[Watch the full demo](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.1.1/weftgate-demo-motion.mp4) ·
+**No API key. No runtime dependencies. Local storage. No automatic transcript capture.**
+Context, recall and default verification make no network calls. Explicitly enabled
+test commands run your repository's code and can have their own side effects.
+
+[![Watch the 78-second motion demo](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/demo.gif)](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.2.0/weftgate-demo.mp4)
+
+[Watch the full demo](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.2.0/weftgate-demo.mp4) ·
 [Transcript and reproducible evidence](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/DEMO.md) · [How to write an oracle](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/ORACLES.md)
 
 ## Try it
@@ -24,9 +33,11 @@ your repository through one local CLI, MCP server, hook, or GitHub Action.
 ```bash
 pip install weftgate
 cd /path/to/your/repo
-weftgate doctor                  # see which contracts can be checked
-weftgate audit                   # inspect the current repository
-weftgate check app/main.py        # check a file or directory
+weftgate setup --agents codex,claude,cursor,antigravity --hooks --instructions
+weftgate doctor                   # inspect coverage and configured integrations
+weftgate audit                    # find existing broken connections
+weftgate resolve "your_function"  # compact source pointers
+weftgate checkpoint               # changed code + evidence still needed
 ```
 
 From source: `pip install git+https://github.com/Avinash-Amudala/weftgate.git`.
@@ -57,7 +68,7 @@ The rule is **block only on a positive, machine-checkable falsehood**. Suggestio
 accompany findings when a nearby candidate exists. An `accept` verdict is not a test
 suite result or proof that the application works; inspect coverage with `weftgate doctor`.
 
-## Supported contracts in v0.1
+## Supported verification contracts
 
 | Oracle | Checks | Conservative limits |
 | --- | --- | --- |
@@ -75,8 +86,8 @@ methods and limitations, rather than a claim of zero false positives.
 ## Use it with your agent
 
 ```bash
-weftgate setup --agents claude,cursor,vscode
-weftgate setup --hooks             # review the generated local configuration
+weftgate setup --agents all --hooks --instructions --dry-run
+weftgate setup --agents codex,claude,cursor,antigravity --hooks --instructions
 ```
 
 The standard-library MCP server requires no extra package. Example MCP configuration:
@@ -87,8 +98,50 @@ The standard-library MCP server requires no extra package. Example MCP configura
 
 Run the server with the repository as its working directory. `weftgate setup --agents all`
 writes supported project configs and prints snippets for clients with global settings.
-CLI and MCP use the same gate functions. Tools include `check_change`, `check_claim`,
-`audit`, `suggest`, `index_status`, and `index`.
+CLI and MCP use the same functions. The new tools are `resolve`, `neighbors`, `card`,
+`remember`, `recall`, `forget`, and `checkpoint`, alongside the existing gate tools.
+
+| Client | Context and recall | Native gate installed by setup |
+| --- | --- | --- |
+| Codex | Project MCP + AGENTS.md guidance | Stop hook requests one repair continuation. Trust via `/hooks`. |
+| Claude Code | Project MCP + rules | Pre-edit gate for Edit/Write/MultiEdit; Stop check catches other writes. |
+| Cursor | Project MCP + always-applied rule | Stop hook with up to two repair follow-ups. |
+| Antigravity | Project MCP + workspace rule | Stop hook for an idle, normally completed run, with a bounded continuation. |
+| VS Code / Copilot, Windsurf, Claude Desktop | MCP setup or printed configuration | Use the CLI, Git hook and CI for gating. |
+
+Client versions, project trust and organization policy affect hook activation.
+MCP tools and rules alone do not force an agent to use the gate. Local hooks are
+guardrails; require the GitHub Action in branch protection to enforce merge checks.
+[Integration paths, activation checks and official references](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/AGENTS-INTEGRATION.md).
+
+## A small agent workflow
+
+```bash
+weftgate card "POST /orders" --budget 1200
+weftgate remember "Order idempotency" "Keep duplicate requests idempotent." --file app/orders.py
+weftgate recall "orders"
+weftgate check app/orders.py
+weftgate checkpoint --run --require-ready
+```
+
+Use paths and routes that exist in your project. Configure the commands the last
+step should observe in `weftgate.toml`:
+
+```toml
+[weftgate.workflow]
+commands = ["python -m pytest -q"]
+```
+
+`--run` explicitly permits execution of configured, allowlisted commands. A checkpoint
+distinguishes proven failures, review findings, missing test evidence and changes
+during verification. `--require-ready` exits 3 when evidence is incomplete. A ready
+checkpoint covers those contracts and commands only. [Workflow details](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/WORKFLOWS.md).
+
+Context responses contain source pointers, not file bodies. The default budget is
+1,500 estimated tokens with a hard cap of 6,000 UTF-8 JSON bytes. Actual model token
+counts vary. `weftgate ledger` reports payload bytes and gate events; it does not
+invent a savings percentage or equate every rejection with an avoided retry.
+[Context coverage and budgets](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/CONTEXT.md).
 
 ## CLI and CI
 
@@ -116,14 +169,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: Avinash-Amudala/weftgate@v0.1.0
+      - uses: Avinash-Amudala/weftgate@v0.2.0
         with:
           mode: check             # or audit to inspect the repository
 ```
 
 The Action supports `base`, `paths` (shell-quoted paths, no shell expansion),
 `block-on`, and `python-version`. Use a full checkout for diff ancestry.
-The [pre-commit hooks](https://github.com/Avinash-Amudala/weftgate/blob/main/.pre-commit-hooks.yaml) use the same gate; pin `rev: v0.1.0`.
+The [pre-commit hooks](https://github.com/Avinash-Amudala/weftgate/blob/main/.pre-commit-hooks.yaml) use the same gate; pin `rev: v0.2.0`.
 
 ## Configure the contract
 
@@ -143,15 +196,17 @@ Outcome claims such as “tests passed” need machine-checkable evidence. Re-ru
 named test command or probing a URL requires explicit `--run` and the configured
 allowlist. See [security and execution boundaries](https://github.com/Avinash-Amudala/weftgate/blob/main/SECURITY.md).
 
-## Optional memory integration
+## Memory that notices changed code
 
-Weftgate exposes `memory anchor`, `memory check`, and `memory changes` through the CLI
-and MCP. With mnemo installed in the same interpreter, add
-`"oracles": ["weftgate.memory"]` to `.mnemo.json` to check structured memory claims.
+The public package integrates a compact, repository-scoped subset of mnemo's
+lexical memory design. `remember`, `recall` and `forget` need no companion install.
+File hashes are checked before recall. Notes with changed or deleted sources stay
+hidden unless you explicitly request `--include-stale`. Review a note and replace it
+with `remember --id ID` to update its grounding.
 
-Changed evidence keeps memories **stale**; checking does not silently replace the
-original hashes or prove remembered prose. See [the integration contract](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MEMORY.md).
-Mnemo is a separate companion repository and is not required to use Weftgate.
+An **anchored** note has unchanged source files; its prose is not proven true.
+Notes without sources are clearly **unverified**. Nothing captures your conversations
+automatically. [Storage, privacy and legacy mnemo integration](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MEMORY.md).
 
 ## Contribute
 

@@ -8,6 +8,12 @@ import sys
 import sysconfig
 
 CORE = (
+    "brain",
+    "context",
+    "payload",
+    "recall",
+    "workflow",
+    "hooks",
     "types",
     "config",
     "registry",

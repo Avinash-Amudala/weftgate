@@ -169,6 +169,34 @@ def build_parser() -> argparse.ArgumentParser:
     mg.add_argument("--since", type=int, default=0)
 
     sub.add_parser("doctor", help="explain the setup and what to fix")
+    for name in ("resolve", "neighbors", "card"):
+        cx = sub.add_parser(name, help="bounded source context and observed relationships")
+        cx.add_argument("reference", help="file, symbol, env name, dependency or METHOD /route")
+        cx.add_argument("--budget", type=int, help="estimated tokens; hard byte cap is 4x this")
+        if name == "neighbors":
+            cx.add_argument("--hops", type=int, default=1)
+            cx.add_argument(
+                "--kinds", nargs="+", choices=["file", "symbol", "env", "import", "route"]
+            )
+    rem = sub.add_parser("remember", help="save a local decision with optional source anchors")
+    rem.add_argument("title")
+    rem.add_argument("text", help="note text, or '-' to read stdin")
+    rem.add_argument("--file", action="append", dest="files")
+    rem.add_argument(
+        "--kind", choices=["decision", "convention", "task", "note"], default="decision"
+    )
+    rem.add_argument("--id", dest="note_id", help="explicitly replace/re-anchor this note")
+    rec = sub.add_parser("recall", help="retrieve notes, hiding changed sources by default")
+    rec.add_argument("query", nargs="?", default="")
+    rec.add_argument("--limit", type=int, default=8)
+    rec.add_argument("--include-stale", action="store_true")
+    rec.add_argument("--budget", type=int)
+    forg = sub.add_parser("forget", help="delete a local note")
+    forg.add_argument("note_id")
+    cp = sub.add_parser("checkpoint", help="check changed code and handoff evidence")
+    cp.add_argument("--run", action="store_true", help="run configured allowlisted test commands")
+    cp.add_argument("--budget", type=int)
+    cp.add_argument("--require-ready", action="store_true", help="exit 3 on incomplete evidence")
     lg = sub.add_parser("ledger", help="blocked changes caught before they shipped")
     lg.add_argument("--clear", action="store_true", help="delete the ledger")
 
@@ -186,16 +214,18 @@ def build_parser() -> argparse.ArgumentParser:
     st = sub.add_parser("setup", help="detect stack, write config, build index, wire hooks")
     st.add_argument("--hooks", action="store_true", help="also write git + Claude Code hooks")
     st.add_argument("--dry-run", action="store_true")
+    st.add_argument("--instructions", action="store_true", help="add agent workflow rules")
     st.add_argument("--force", action="store_true", help="overwrite an existing weftgate.toml")
     st.add_argument(
         "--agents",
         default=None,
         help="comma-separated agents to configure: claude, cursor, vscode, codex, "
-        "windsurf, claude-desktop, or all",
+        "antigravity, windsurf, claude-desktop, or all",
     )
 
     h = sub.add_parser("hook", help="agent hook adapters")
-    h.add_argument("agent", choices=["claude"])
+    h.add_argument("agent", choices=["claude", "codex", "cursor", "antigravity"])
+    h.add_argument("--event", choices=["pre", "stop"], default="pre")
 
     sub.add_parser("mcp", help="start the stdio MCP server")
     for parser in (
@@ -408,6 +438,26 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if report.get("ok") else 1
 
 
+def cmd_brain(args: argparse.Namespace) -> int:
+    from . import brain
+    from .payload import encode
+
+    values = vars(args).copy()
+    if args.command == "remember" and values.get("text") == "-":
+        values["text"] = sys.stdin.read()
+    with gate.Session(_repo(args), store_path=args.store) as session:
+        out = brain.call(args.command, session, values)
+    from . import ledger
+
+    ledger.record_context(out, _repo(args), "cli")
+    print(encode(out))
+    if out.get("blocking") or out.get("stored") is False:
+        return 1
+    if args.command == "checkpoint" and args.require_ready and out["state"] != "ready":
+        return 3
+    return 0
+
+
 def cmd_ledger(args: argparse.Namespace) -> int:
     from . import ledger
 
@@ -458,12 +508,19 @@ def cmd_setup(args: argparse.Namespace) -> int:
         force=args.force,
         fmt=args.format,
         agents=agents or None,
+        instructions=args.instructions,
     )
 
 
 def cmd_hook(args: argparse.Namespace) -> int:
     from . import setup
 
+    if args.event == "stop":
+        from .hooks import completion
+
+        return completion(args.agent, _repo(args), sys.stdin.read(), store_path=args.store)
+    if args.agent != "claude":
+        raise ValueError("pre-edit adapter is currently supported for claude; use --event stop")
     return setup.claude_hook(_repo(args), sys.stdin.read(), store_path=args.store)
 
 
@@ -474,6 +531,9 @@ def cmd_mcp(args: argparse.Namespace) -> int:
 
 
 _COMMANDS = {
+    **dict.fromkeys(
+        ("resolve", "neighbors", "card", "remember", "recall", "forget", "checkpoint"), cmd_brain
+    ),
     "check": cmd_check,
     "claim": cmd_claim,
     "audit": cmd_audit,

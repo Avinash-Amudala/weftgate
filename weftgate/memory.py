@@ -158,11 +158,17 @@ def _make_anchor(
     }
     match kind:
         case "file":
+            from .context import safe_path
+
             rel = value.replace(os.sep, "/")
             while rel.startswith("./"):
                 rel = rel[2:]
             full = os.path.join(session.store.repo_root, rel)
-            if os.path.isabs(value) or ".." in rel.split("/"):
+            if (
+                os.path.isabs(value)
+                or ".." in rel.split("/")
+                or safe_path(session.store.repo_root, rel) is None
+            ):
                 return {
                     **base,
                     "node": f"file:{rel}",

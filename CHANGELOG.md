@@ -5,6 +5,15 @@ All notable changes to weftgate are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-13
+
+### Fixed
+- Use absolute repository documentation links in the package README so they work
+  on PyPI as well as GitHub. Verification behavior is unchanged.
+
+### Added
+- Release validation record and an unpublished developer walkthrough for the launch.
+
 ## [0.1.0] - 2026-09-12
 
 The verification gate.

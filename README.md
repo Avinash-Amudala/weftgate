@@ -4,8 +4,8 @@
 
 [![CI](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml/badge.svg)](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/weftgate)](https://pypi.org/project/weftgate/)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
-[![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/pyproject.toml)
+[![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/LICENSE)
 
 A mistyped environment variable. An import missing from the lockfile. A FastAPI route
 pointing at a handler that does not exist. Weftgate checks these connections against
@@ -16,7 +16,7 @@ your repository through one local CLI, MCP server, hook, or GitHub Action.
 [![Watch the 52-second demo](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/demo.gif)](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.1.0/weftgate-demo.mp4)
 
 [Watch the full demo](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.1.0/weftgate-demo.mp4) ·
-[Transcript and reproducible evidence](docs/DEMO.md) · [How to write an oracle](docs/ORACLES.md)
+[Transcript and reproducible evidence](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/DEMO.md) · [How to write an oracle](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/ORACLES.md)
 
 ## Try it
 
@@ -68,7 +68,7 @@ This is an early static analyzer with bounded parsers. It does not execute your 
 replace tests or a security scanner, or cover every framework. Python, Node, and
 monorepo import resolution can depend on runtime configuration. Missing or ambiguous
 evidence must soften; please [report a false block](https://github.com/Avinash-Amudala/weftgate/issues/new/choose)
-with a minimal reproduction. [Historical field runs](docs/FIELD-RESULTS.md) document
+with a minimal reproduction. [Historical field runs](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/FIELD-RESULTS.md) document
 methods and limitations, rather than a claim of zero false positives.
 
 ## Use it with your agent
@@ -122,7 +122,7 @@ jobs:
 
 The Action supports `base`, `paths` (shell-quoted paths, no shell expansion),
 `block-on`, and `python-version`. Use a full checkout for diff ancestry.
-The [pre-commit hooks](.pre-commit-hooks.yaml) use the same gate; pin `rev: v0.1.0`.
+The [pre-commit hooks](https://github.com/Avinash-Amudala/weftgate/blob/main/.pre-commit-hooks.yaml) use the same gate; pin `rev: v0.1.0`.
 
 ## Configure the contract
 
@@ -140,7 +140,7 @@ configuration, then defaults. The index lives in the user cache, outside the rep
 
 Outcome claims such as “tests passed” need machine-checkable evidence. Re-running a
 named test command or probing a URL requires explicit `--run` and the configured
-allowlist. See [security and execution boundaries](SECURITY.md).
+allowlist. See [security and execution boundaries](https://github.com/Avinash-Amudala/weftgate/blob/main/SECURITY.md).
 
 ## Optional memory integration
 
@@ -149,7 +149,7 @@ and MCP. With mnemo installed in the same interpreter, add
 `"oracles": ["weftgate.memory"]` to `.mnemo.json` to check structured memory claims.
 
 Changed evidence keeps memories **stale**; checking does not silently replace the
-original hashes or prove remembered prose. See [the integration contract](docs/MEMORY.md).
+original hashes or prove remembered prose. See [the integration contract](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MEMORY.md).
 Mnemo is a separate companion repository and is not required to use Weftgate.
 
 ## Contribute
@@ -163,9 +163,9 @@ bash scripts/bootstrap.sh
 .venv/bin/python -m pytest -q --cov=weftgate --cov-fail-under=85
 ```
 
-Start with [CONTRIBUTING.md](CONTRIBUTING.md), the [oracle guide](docs/ORACLES.md), and
-[AGENTS.md](AGENTS.md). New oracles need a real broken example, a correct example,
+Start with [CONTRIBUTING.md](https://github.com/Avinash-Amudala/weftgate/blob/main/CONTRIBUTING.md), the [oracle guide](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/ORACLES.md), and
+[AGENTS.md](https://github.com/Avinash-Amudala/weftgate/blob/main/AGENTS.md). New oracles need a real broken example, a correct example,
 and a dynamic case that reviews. Reproducible false blocks and missing-contract
 reports are especially useful.
 
-Apache-2.0 · [Changelog](CHANGELOG.md) · [Launch plan](docs/LAUNCH.md)
+Apache-2.0 · [Changelog](https://github.com/Avinash-Amudala/weftgate/blob/main/CHANGELOG.md) · [Launch plan](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/LAUNCH.md)

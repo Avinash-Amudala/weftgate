@@ -33,8 +33,12 @@ path filtering and redundant stat calls; its one-second bound was retained.
 The maintainer's Weftgate and mnemo checkouts now have project MCP configuration,
 completion hooks and workflow guidance for all four editors. Client trust remains a
 separate activation step. Weftgate's configured test checkpoint observed passing
-tests with an unchanged tree fingerprint. GitHub branch protection remains a
-maintainer activation step.
+tests with an unchanged tree fingerprint. GitHub `main` protection was enabled on
+September 13, 2026: pull requests, eight required CI jobs, up-to-date branches,
+resolved conversations, linear history and administrator enforcement. Force pushes
+and branch deletion are blocked. See [repository protection](REPOSITORY-PROTECTION.md).
+GitHub secret scanning, push protection, vulnerability alerts and Dependabot
+security updates are enabled. These settings apply to the public Weftgate repository.
 
 ## Verification gate, v0.1.0
 

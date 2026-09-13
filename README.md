@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml/badge.svg)](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/weftgate)](https://pypi.org/project/weftgate/)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-weftgate-purple)](https://github.com/marketplace/actions/weftgate)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/pyproject.toml)
 [![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/LICENSE)
 

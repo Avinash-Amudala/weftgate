@@ -92,6 +92,18 @@ Use a minimal example in the community’s language/stack. Explain the failure a
 limitations first. State “I maintain this project.” Check the community’s current
 rules immediately before posting. Do not paste identical posts into many communities.
 
+## Published launch posts
+
+- [GitHub Marketplace Action](https://github.com/marketplace/actions/weftgate)
+- [GitHub announcement](https://github.com/Avinash-Amudala/weftgate/discussions/11)
+- [LinkedIn announcement](https://www.linkedin.com/feed/update/urn:li:share:7504740331062624256/)
+- [DEV technical walkthrough](https://dev.to/avinash_amudala_8712ab560/catch-broken-environment-import-and-route-connections-with-weftgate-2h3p), with [source](launch/DEV-POST.md)
+- [Show HN repository submission](https://news.ycombinator.com/item?id=49680443)
+
+The Show HN submission contains a factual title and repository link. The maintainer
+should write personal introductory comments and replies directly, in their own words.
+Do not solicit coordinated votes or repost the same submission.
+
 ## Budget
 
 Start at **$0**. Publishing, repository improvements, the demo, and personal technical

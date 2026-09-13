@@ -20,6 +20,7 @@ All notable changes to weftgate are recorded here. The format follows
 - The ledger reports observed payload bytes and gate events. Removed speculative
   token savings based on a fixed cost per rejection.
 - Setup uses atomic file replacement and rejects symlink destinations before writes.
+- Reduce repeated stat calls and path filtering in no-Git index scans.
 
 ## [0.1.1] - 2026-09-13
 

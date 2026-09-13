@@ -237,6 +237,14 @@ def main():
             "A local second brain grounded in code. Understand, remember, verify.",
         )
     )
+    subtitles = []
+    for number, block in enumerate(
+        (args.out / "demo.vtt").read_text().strip().split("\n\n")[1:], 1
+    ):
+        lines = block.splitlines()
+        lines[0] = lines[0].replace(".", ",")
+        subtitles.append(str(number) + "\n" + "\n".join(lines))
+    (args.out / "demo.srt").write_text("\n\n".join(subtitles) + "\n")
     if args.stills_only:
         print(f"Storyboard and real CLI evidence saved to {args.out}", flush=True)
         return

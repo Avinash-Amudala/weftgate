@@ -1,0 +1,5 @@
+[weftgate]
+oracles = ["env_vars", "imports_lockfile", "routes_fastapi"]
+
+[weftgate.workflow]
+commands = ["python -m unittest -q"]

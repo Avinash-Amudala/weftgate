@@ -7,7 +7,8 @@ are better evidence of value.
 
 ## Positioning
 
-**A local second brain for coding agents. Understand. Remember. Verify.**
+**New session. Same project brain.** Local memory and context for coding agents,
+with verification built in. Understand, remember, build, verify and resume.
 
 Weftgate brings source-backed context, a local decision notebook, and verification
 into one Python package. It exposes the same tools through CLI and MCP, configures
@@ -189,3 +190,33 @@ the new v0.3 commands. Preserve existing launch posts and the Show HN submission
 avoid a second wave of identical same-day posts. The next technical article should
 show a reproducible cross-agent handoff and a real adopter's feedback, with permission.
 No new paid placement or recurring outreach is started by this update.
+
+## September 15: memory-first distribution experiment
+
+The earlier quickstart and the opening of the foundation film emphasized auditing.
+Lead now with a concrete repeat-session problem: preserve a project decision and
+retrieve it with current source pointers when the next agent starts. Keep the
+verification capability visible as part of that loop.
+
+New assets: a [copyable session example](../examples/session-memory/README.md),
+[36-second vertical film](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.3.0/weftgate-session-memory.mp4),
+[executed evidence](assets/session/evidence.json) and [creator brief](launch/CREATOR-BRIEF.md).
+The earlier launch statuses above are historical.
+
+| Window | Specific action | Decision evidence |
+| --- | --- | --- |
+| September 15–17 | Lead README and one substantive social update with the session-memory story. Invite volunteers to try that exact example. Send three individual inquiries to relevant Indian developer/AI creators via their published business contacts. | Working public links, sent inquiries, voluntary trial reports. |
+| September 18–21 | Respond to actual questions and setup problems. Compare creator replies using current audience fit, relevant Reel reach and full quoted cost. | Ask whether people reached a useful brief and resumed a later task, not just whether they clicked. |
+| September 22–28 | With separate approval of a specific quote, consider one disclosed Reel + Story pilot. Otherwise continue the free example/tutorial route. Share a concrete lesson from trials with permission. | Record spend, creator-reported link taps, voluntary usage feedback and change in public stars separately. Do not attribute all star growth to an ad. |
+| September 29 | Compare the revised story with the September 15 baseline. | Scale only a channel that produces relevant trials or substantive feedback. Zero useful trials means revise onboarding/audience before more spend. |
+
+Working targets for this experiment: five completed outside trials, two reports of
+use in a later session, and at least one actionable onboarding report. These are
+targets to test usefulness, not claims of achieved adoption. The 1,000-star goal is
+still aspirational; no reach, reply, install or star outcome is guaranteed.
+
+No paid spend is approved by this plan. Obtain a written quote and current audience
+evidence before requesting a budget decision. Keep individual outreach, quotes and
+private traffic in local records. Do not mass-DM creators, send repeated reminders,
+buy engagement or link payment to a star count. This plan does not schedule an
+automation; later actions need an active work session.

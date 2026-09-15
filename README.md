@@ -1,6 +1,8 @@
 # weftgate
 
-**A local second brain for coding agents. Understand the code. Remember decisions. Verify changes.**
+**New session. Same project brain.**
+
+Local memory and context for coding agents, with verification built in.
 
 [![CI](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml/badge.svg)](https://github.com/Avinash-Amudala/weftgate/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/weftgate)](https://pypi.org/project/weftgate/)
@@ -8,12 +10,15 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/pyproject.toml)
 [![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/Avinash-Amudala/weftgate/blob/main/LICENSE)
 
-Give your agent compact source context, durable decisions and verification gates
-through **one install, one MCP server and one local memory store**. Weftgate brings
-Mnemo’s local memory workflow into the verification engine. You do not need to
-install or configure a second project for everyday use.
+Keep the decisions your next coding session needs. Weftgate gives connected agents
+a shared local notebook, compact source pointers and handoffs with observed checks.
+Use it throughout the task: understand, remember, build, verify and resume.
 
-![Weftgate brain: understand, remember, verify](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/weftgate-brain.png)
+**One install, one MCP server, one local memory store.** Mnemo’s everyday local memory
+workflow is built in. Connect each client to the same repository to share saved
+notes; no second project is needed.
+
+[![Weftgate brain: understand, remember, verify](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/weftgate-brain.png)](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.3.0/weftgate-session-memory.mp4)
 
 | Understand | Remember | Verify |
 | --- | --- | --- |
@@ -24,10 +29,9 @@ install or configure a second project for everyday use.
 Context, recall and default verification make no network calls. Explicitly enabled
 test commands run your repository's code and can have their own side effects.
 
-[![Watch the 78-second motion demo](https://raw.githubusercontent.com/Avinash-Amudala/weftgate/main/docs/assets/demo.gif)](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.2.0/weftgate-demo.mp4)
-
-[Watch the v0.2 foundation demo](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.2.0/weftgate-demo.mp4) ·
-[Transcript and reproducible evidence](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/DEMO.md) · [How to write an oracle](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/ORACLES.md)
+[Watch the 36-second memory workflow](https://github.com/Avinash-Amudala/weftgate/releases/download/v0.3.0/weftgate-session-memory.mp4) ·
+[Try the copyable example](examples/session-memory/README.md) ·
+[Creator demo kit](docs/launch/CREATOR-BRIEF.md)
 
 ## Try it
 
@@ -35,55 +39,84 @@ test commands run your repository's code and can have their own side effects.
 pip install weftgate
 cd /path/to/your/repo
 weftgate setup --agents codex,claude,cursor,antigravity --hooks --instructions
+weftgate brief "your next task"   # relevant notes + current source pointers
+weftgate memory stats             # your local notebook and freshness counts
 weftgate doctor                   # inspect coverage and configured integrations
-weftgate audit                    # find existing broken connections
-weftgate brief "your next task"   # memories + current source context
-weftgate memory stats             # one local notebook and freshness counts
-weftgate checkpoint               # changed code + evidence still needed
 ```
 
 From source: `pip install git+https://github.com/Avinash-Amudala/weftgate.git`.
 For development, `bash scripts/bootstrap.sh` installs the extras and runs the offline self-test.
 
-The demo uses an intentionally broken fixture, not a field benchmark:
+Start with the [session-memory example](examples/session-memory/README.md): save a
+decision, retrieve it in a new process, observe a test in a handoff, then change the
+source and watch stale notes disappear from default recall. It takes no AI account.
+The short film illustrates those executed CLI steps; it is not an editor recording.
 
-```text
-REJECT  import 'requestz'       → did you mean requests?
-REJECT  env var 'DATABSE_URL'   → did you mean DATABASE_URL?
-REJECT  handler 'helth'         → did you mean health?
+## From first brief to the next session
+
+```bash
+weftgate brief "order retries" --reference app/orders.py --budget 1200
+weftgate remember "Order idempotency" "Keep duplicate requests idempotent." --file app/orders.py
+# Your coding agent makes the change. Then:
+weftgate check app/orders.py
+weftgate handoff "Order retries" "Added retry handling. Next: review timeout behavior." --file app/orders.py --run --require-ready
+# In Codex, Claude Code, Cursor or another MCP client:
+weftgate brief "order retries"
 ```
 
-Fix the three names and the fixture passes. A computed key such as `os.environ[key]`
-returns `review`, because static analysis cannot establish its value.
-To reproduce: `weftgate eval mutate --fixture --seed 13`.
+Use paths and routes that exist in your project. Configure the commands the last
+step should observe in `weftgate.toml`:
 
-## What the result means
+```toml
+[weftgate.workflow]
+commands = ["python -m pytest -q"]
+```
 
-| Result | Meaning | Blocks by default? |
-| --- | --- | --- |
-| `accept` | The extracted reference resolves, or nothing checkable was found. | No |
-| `review` | Evidence is incomplete or the reference is dynamic. | No |
-| `reject` | A hard claim contradicts the indexed contract. | Yes |
-| `unverifiable` | The relevant index or capability is unavailable. | No |
+`--run` explicitly permits execution of configured, allowlisted commands. A checkpoint
+distinguishes proven failures, review findings, missing test evidence and changes
+during verification. `--require-ready` exits 3 when evidence is incomplete. A ready
+checkpoint covers those contracts and commands only. [Workflow details](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/WORKFLOWS.md).
 
-The rule is **block only on a positive, machine-checkable falsehood**. Suggestions
-accompany findings when a nearby candidate exists. An `accept` verdict is not a test
-suite result or proof that the application works; inspect coverage with `weftgate doctor`.
+Context responses contain source pointers, not file bodies. The default budget is
+1,500 estimated tokens with a hard cap of 6,000 UTF-8 JSON bytes. Actual model token
+counts vary. `weftgate ledger` reports payload bytes and gate events; it does not
+invent a savings percentage or equate every rejection with an avoided retry.
+[Context coverage and budgets](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/CONTEXT.md).
 
-## Supported verification contracts
+## Memory that notices changed code
 
-| Oracle | Checks | Conservative limits |
-| --- | --- | --- |
-| Environment variables | Reads against dotenv examples, settings schemas, Docker/Compose declarations, code defaults, and configured files. | Dynamic keys and absent declaration sources soften. Declare externally supplied variables in your contract. |
-| Python and Node imports | Imports against dependency metadata, local packages, known package aliases, and supported path aliases. | A manifest alone cannot prove a complete dependency tree. Unknown mappings and optional imports review. |
-| FastAPI / Starlette routes | Handler references, router includes, and route claims using a static AST index. | Computed registration, external modules, and unresolved prefixes cannot be fully verified. |
+Weftgate's notebook checks explicit file, environment, route, import and symbol
+claims before saving them. A proven false claim is refused with available suggestions.
+Uncertain claims stay available for review. Recall checks original source hashes,
+and notes with changed or missing evidence stay hidden by default. Source anchors
+support a claim about freshness; the note's prose remains unverified.
 
-This is an early static analyzer with bounded parsers. It does not execute your app,
-replace tests or a security scanner, or cover every framework. Python, Node, and
-monorepo import resolution can depend on runtime configuration. Missing or ambiguous
-evidence must soften; please [report a false block](https://github.com/Avinash-Amudala/weftgate/issues/new/choose)
-with a minimal reproduction. [Historical field runs](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/FIELD-RESULTS.md) document
-methods and limitations, rather than a claim of zero false positives.
+```bash
+weftgate remember "Database access" "Use the declared connection." --env DATABASE_URL
+weftgate recall "database"
+weftgate recall "database" --include-stale
+weftgate memory stats
+```
+
+`handoff` saves a summary and its scoped checkpoint in the same notebook. Another
+agent can resume through `brief`; remembered test evidence is labeled historical
+and changes to the current tree are detected. Obvious secret patterns are scrubbed
+from note text, but do not treat this as permission to store credentials.
+
+Already have Mnemo data? Preview and import selected memories without installing
+Mnemo or modifying its database:
+
+```bash
+weftgate memory import /path/to/mnemo.sqlite --limit 10
+weftgate memory import /path/to/mnemo.sqlite --limit 10 --apply
+```
+
+The legacy repository remains compatible for existing transcript and team-hub
+users. Automatic capture, external embeddings and team federation are outside the
+public local workflow. They are not silently enabled by migration.
+[Memory and trust](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MEMORY.md) ·
+[Migration and backup](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MNEMO-MIGRATION.md) ·
+[Architecture and scope](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/DESIGN.md).
 
 ## Use it with your agent
 
@@ -117,36 +150,49 @@ MCP tools and rules alone do not force an agent to use the gate. Local hooks are
 guardrails; require the GitHub Action in branch protection to enforce merge checks.
 [Integration paths, activation checks and official references](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/AGENTS-INTEGRATION.md).
 
-## A small agent workflow
+## Verification throughout the workflow
 
-```bash
-weftgate brief "order retries" --reference app/orders.py --budget 1200
-weftgate remember "Order idempotency" "Keep duplicate requests idempotent." --file app/orders.py
-# Your coding agent makes the change. Then:
-weftgate check app/orders.py
-weftgate handoff "Order retries" "Added retry handling. Next: review timeout behavior." --file app/orders.py --run --require-ready
-# In Codex, Claude Code, Cursor or another MCP client:
-weftgate brief "order retries"
+Check proposed edits, changed files, a working tree or a pull request. Hooks and CI
+use the same gate as the CLI and MCP tools. The original gate fixture shows:
+
+The demo uses an intentionally broken fixture, not a field benchmark:
+
+```text
+REJECT  import 'requestz'       → did you mean requests?
+REJECT  env var 'DATABSE_URL'   → did you mean DATABASE_URL?
+REJECT  handler 'helth'         → did you mean health?
 ```
 
-Use paths and routes that exist in your project. Configure the commands the last
-step should observe in `weftgate.toml`:
+Fix the three names and the fixture passes. A computed key such as `os.environ[key]`
+returns `review`, because static analysis cannot establish its value.
+To reproduce: `weftgate eval mutate --fixture --seed 13`.
 
-```toml
-[weftgate.workflow]
-commands = ["python -m pytest -q"]
-```
 
-`--run` explicitly permits execution of configured, allowlisted commands. A checkpoint
-distinguishes proven failures, review findings, missing test evidence and changes
-during verification. `--require-ready` exits 3 when evidence is incomplete. A ready
-checkpoint covers those contracts and commands only. [Workflow details](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/WORKFLOWS.md).
+| Result | Meaning | Blocks by default? |
+| --- | --- | --- |
+| `accept` | The extracted reference resolves, or nothing checkable was found. | No |
+| `review` | Evidence is incomplete or the reference is dynamic. | No |
+| `reject` | A hard claim contradicts the indexed contract. | Yes |
+| `unverifiable` | The relevant index or capability is unavailable. | No |
 
-Context responses contain source pointers, not file bodies. The default budget is
-1,500 estimated tokens with a hard cap of 6,000 UTF-8 JSON bytes. Actual model token
-counts vary. `weftgate ledger` reports payload bytes and gate events; it does not
-invent a savings percentage or equate every rejection with an avoided retry.
-[Context coverage and budgets](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/CONTEXT.md).
+The rule is **block only on a positive, machine-checkable falsehood**. Suggestions
+accompany findings when a nearby candidate exists. An `accept` verdict is not a test
+suite result or proof that the application works; inspect coverage with `weftgate doctor`.
+
+## Supported verification contracts
+
+| Oracle | Checks | Conservative limits |
+| --- | --- | --- |
+| Environment variables | Reads against dotenv examples, settings schemas, Docker/Compose declarations, code defaults, and configured files. | Dynamic keys and absent declaration sources soften. Declare externally supplied variables in your contract. |
+| Python and Node imports | Imports against dependency metadata, local packages, known package aliases, and supported path aliases. | A manifest alone cannot prove a complete dependency tree. Unknown mappings and optional imports review. |
+| FastAPI / Starlette routes | Handler references, router includes, and route claims using a static AST index. | Computed registration, external modules, and unresolved prefixes cannot be fully verified. |
+
+This is an early static analyzer with bounded parsers. It does not execute your app,
+replace tests or a security scanner, or cover every framework. Python, Node, and
+monorepo import resolution can depend on runtime configuration. Missing or ambiguous
+evidence must soften; please [report a false block](https://github.com/Avinash-Amudala/weftgate/issues/new/choose)
+with a minimal reproduction. [Historical field runs](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/FIELD-RESULTS.md) document
+methods and limitations, rather than a claim of zero false positives.
 
 ## CLI and CI
 
@@ -201,42 +247,12 @@ Outcome claims such as “tests passed” need machine-checkable evidence. Re-ru
 named test command or probing a URL requires explicit `--run` and the configured
 allowlist. See [security and execution boundaries](https://github.com/Avinash-Amudala/weftgate/blob/main/SECURITY.md).
 
-## Memory that notices changed code
-
-Weftgate's notebook checks explicit file, environment, route, import and symbol
-claims before saving them. A proven false claim is refused with available suggestions.
-Uncertain claims stay available for review. Recall checks original source hashes,
-and notes with changed or missing evidence stay hidden by default. Source anchors
-support a claim about freshness; the note's prose remains unverified.
-
-```bash
-weftgate remember "Database access" "Use the declared connection." --env DATABASE_URL
-weftgate recall "database"
-weftgate recall "database" --include-stale
-weftgate memory stats
-```
-
-`handoff` saves a summary and its scoped checkpoint in the same notebook. Another
-agent can resume through `brief`; remembered test evidence is labeled historical
-and changes to the current tree are detected. Obvious secret patterns are scrubbed
-from note text, but do not treat this as permission to store credentials.
-
-Already have Mnemo data? Preview and import selected memories without installing
-Mnemo or modifying its database:
-
-```bash
-weftgate memory import /path/to/mnemo.sqlite --limit 10
-weftgate memory import /path/to/mnemo.sqlite --limit 10 --apply
-```
-
-The legacy repository remains compatible for existing transcript and team-hub
-users. Automatic capture, external embeddings and team federation are outside the
-public local workflow. They are not silently enabled by migration.
-[Memory and trust](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MEMORY.md) ·
-[Migration and backup](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/MNEMO-MIGRATION.md) ·
-[Architecture and scope](https://github.com/Avinash-Amudala/weftgate/blob/main/docs/DESIGN.md).
-
 ## Contribute
+
+If this helps your workflow, **star the repository** so you can find it again.
+To help shape the tool, share which agent you used, whether the first brief was
+useful, and what you had to explain again in [Discussions](https://github.com/Avinash-Amudala/weftgate/discussions).
+
 
 ```bash
 bash scripts/bootstrap.sh
